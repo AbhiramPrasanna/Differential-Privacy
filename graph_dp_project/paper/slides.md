@@ -193,23 +193,55 @@ We compare **two approaches**:
 
 ---
 
-## Slide 7: Expected Results
+## Slide 7: Empirical Results - Sensitivity Comparison
 
-### **Hypothesis 1: Restricted Sensitivity**
-- **Higher average sensitivity** (uses $d_{tail}$)
-- **More rigorous** (uniform bound)
-- **Higher error** (more conservative)
+**Dataset**: Facebook Sample (n=1000 nodes, 14,436 edges, 163,056 triangles)
 
-### **Hypothesis 2: Per-Node Sensitivity**
-- **Lower average sensitivity** (most nodes have $d \ll d_{tail}$)
-- **Less rigorous** (may leak degree info)
-- **Lower error** (adaptive noise)
+### Triangle Count Sensitivity:
 
-**Trade-off**: **Privacy Rigor** ↔ **Utility**
+| Approach | Sensitivity | Reduction |
+|:---------|:-----------|:----------|
+| **Restricted** | 68.0 | Baseline |
+| **Per-Node** | 16.3 (avg) | **4.2x lower** ✅ |
+
+### 3-Star Count Sensitivity:
+
+| Approach | Sensitivity | Reduction |
+|:---------|:-----------|:----------|
+| **Restricted** | 2,278 | Baseline |
+| **Per-Node** | 229.4 (avg) | **9.9x lower** ✅ |
+
+**Key Finding**: Per-Node Sensitivity uses **dramatically lower** noise magnitude!
 
 ---
 
-## Slide 8: Privacy Analysis
+## Slide 8: Empirical Results - Error Comparison
+
+### Triangle Count Error (at various ε):
+
+| ε | Restricted | Per-Node | Winner |
+|:--|:-----------|:---------|:-------|
+| 0.1 | 7.05% | **0.26%** | ✨ Per-Node (27x better) |
+| 0.5 | 1.89% | **0.07%** | ✨ Per-Node (26x better) |
+| 1.0 | 0.57% | **0.06%** | ✨ Per-Node (9x better) |
+| 2.0 | 0.015% | 0.061% | Restricted |
+| 5.0 | 0.19% | **0.04%** | ✨ Per-Node |
+
+### 3-Star Count Error (at various ε):
+
+| ε | Restricted | Per-Node | Winner |
+|:--|:-----------|:---------|:-------|
+| 0.1 | 1.74% | **0.014%** | ✨ Per-Node (120x better) |
+| 0.5 | 0.23% | **0.11%** | ✨ Per-Node (2x better) |
+| 1.0 | 0.088% | **0.037%** | ✨ Per-Node (2.4x better) |
+| 2.0 | 0.029% | **0.005%** | ✨ Per-Node (5.8x better) |
+| 5.0 | 0.030% | **0.004%** | ✨ Per-Node (6.9x better) |
+
+**Result**: Per-Node **dominates** in almost all scenarios!
+
+---
+
+## Slide 9: Analysis - Why Per-Node Wins
 
 ### **Restricted Sensitivity: Privacy Guarantee**
 
