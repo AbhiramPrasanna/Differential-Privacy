@@ -62,9 +62,11 @@
 **Definition**: Each user $u$ sees only their **local neighborhood**, not the entire graph
 
 **Policy**: **2-Hop Visibility**
+
 $$
 V_{visible}(u) = N(u) \cup N(N(u))
 $$
+
 
 **Rationale**:
 - Matches real platforms ("Mutual Friends")
