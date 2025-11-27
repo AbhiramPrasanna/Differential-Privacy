@@ -565,8 +565,56 @@ graph_dp_project/
 │   ├── experiment.py      # Experiment runner
 │   ├── download_data.py   # Data downloader
 │   └── plot_results.py    # Visualization
+├── data/
+│   └── facebook_combined.txt  # Facebook SNAP dataset
+├── paper/
+│   ├── paper.md           # Research paper
+│   ├── technical_report.md
+│   ├── theoretical_bounds_analysis.md
+│   ├── results_comprehensive.csv
+│   └── plots/             # Generated plots
+└── README.md
+```
 
-1.  **Public Hubs Strategy**: Selecting top-k by degree is simple and effective. It aligns with real-world intuition (celebrities, organizations have public profiles).
+### 3.2 Core Components
+
+#### 3.2.1 `model.py` - Graph Model
+
+**`VisibilityOracle`**:
+*   Implements the **2-hop visibility** policy.
+*   Given a user $u$, returns the induced subgraph on nodes within distance 2.
+*   This is the "view" that user $u$ sees before privatization.
+
+**`SocialGraph`**:
+*   Wraps a NetworkX graph.
+*   Manages the **Public/Private** node designation.
+*   Implements `_select_public_nodes()` using the `degree_top_k` strategy (select top 20% by degree).
+
+#### 3.2.2 `algorithms.py` - DP Algorithms
+
+**`GraphDPAlgorithms`**:
+*   Implements all 6 algorithms (edge count, max degree, triangles, k-stars, each with clipped/smooth variants).
+*   Uses a generic `_aggregate_local_queries()` helper for the LDP aggregation pattern.
+*   Automatically checks if a node is Public and skips noise addition.
+
+#### 3.2.3 `experiment.py` - Evaluation Pipeline
+
+**Workflow**:
+1.  Load Facebook SNAP graph.
+2.  Sample a power-law subgraph (1000 nodes) to ensure tractable runtime.
+3.  Designate top 20% nodes as Public.
+4.  For each $\epsilon \in [0.1, 0.5, 1.0, 2.0, 5.0]$:
+    *   Run all algorithms.
+    *   Compute ground truth and relative error.
+5.  Save results to CSV.
+
+#### 3.2.4 `plot_results.py` - Visualization
+
+*   Reads `results_comprehensive.csv`.
+*   Generates 3 plots (edge, triangle, 3-star errors vs $\epsilon$).
+*   Compares Clipped vs Smooth for triangle and k-star counts.
+
+### 3.3 Key Design Decisions
 2.  **2-Hop Visibility**: Provides enough local context for triangle counting while remaining realistic (users see friends-of-friends).
 3.  **Smooth Sensitivity**: The most impactful innovation. By computing instance-specific sensitivity, we reduce noise by 3-10x in practice.
 4.  **Modular Design**: Separating the model, algorithms, and experiments makes the codebase easy to extend (e.g., adding new visibility policies or algorithms).
