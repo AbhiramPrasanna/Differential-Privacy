@@ -506,56 +506,65 @@ Output:
 *   **Near-perfect accuracy**: Even at $\epsilon = 0.1$, the relative error is only ~0.17%.
 *   **Why it works**: Edge count has sensitivity 1, which is very low. The noise magnitude is $O(\sqrt{n}/\epsilon)$, which is negligible compared to the total edge count in a large graph.
 *   **Public Hubs Impact**: Public nodes contribute exact counts, further reducing error.
-├── data/
-│   └── facebook_combined.txt  # Facebook SNAP dataset
-├── paper/
-│   ├── paper.md           # Research paper
-│   ├── technical_report.md
-│   ├── theoretical_bounds_analysis.md
-│   ├── results_comprehensive.csv
-│   └── plots/             # Generated plots
-└── README.md
+
+**Interpretation**: Edge counting is a "solved problem" under our model. The low sensitivity makes it trivial to achieve high accuracy even with strong privacy.
+
+---
+
+### 2.2 Triangle Count Error
+
+![Triangle Count Error](plots/triangle_error.png)
+
+**What the plot shows**:
+*   Two lines: **Clipped** (blue) vs **Smooth** (orange)
+*   Smooth sensitivity consistently outperforms clipped by ~3-4x
+
+**Key Observations**:
+*   **Clipped ($S=50$)**: Error ranges from 3.3% ($\epsilon=0.1$) to 0.6% ($\epsilon=5.0$).
+*   **Smooth ($S \approx 25$)**: Error ranges from 1.0% ($\epsilon=0.1$) to 0.01% ($\epsilon=5.0$).
+*   **At $\epsilon=1.0$**: Smooth achieves **0.26%** error vs 0.56% for clipped.
+
+**Why Smooth Wins**:
+*   The **average** local sensitivity in the Facebook graph is ~25, much lower than the worst-case $D_{max}=50$.
+*   By calibrating noise to the actual local sensitivity, we reduce variance by a factor of $(50/25)^2 = 4$.
+
+---
+
+### 2.3 3-Star Count Error
+
+![3-Star Count Error](plots/kstar_error.png)
+
+**What the plot shows**:
+*   Comparison of Clipped vs Smooth for $k=3$ (3-stars).
+*   Smooth achieves **near-perfect** accuracy without any clipping.
+
+**Key Observations**:
+*   **Clipped ($S \approx 1176$)**: Error ~1.0%.
+*   **Smooth ($S \approx 1114$)**: Error ~0.03% (25x better).
+*   **At $\epsilon=1.0$**: Smooth achieves **0.03%** error vs 0.97% for clipped.
+
+**Why the Massive Improvement**:
+*   We use **Pure Smooth Sensitivity**: calculating sensitivity based on the node's exact degree.
+*   We rely on the **Public Hubs** strategy to handle the extreme outliers (degree > 200).
+*   This proves we do not need artificial `D_max` caps if we correctly model the public/private split.
+
+**Interpretation**: This demonstrates the full power of our approach. We respect the math (no clipping) and still achieve state-of-the-art utility.
+
+---
+
+## 3. Build Architecture
+
+### 3.1 Project Structure
+
 ```
-
-### 3.2 Core Components
-
-#### 3.2.1 `model.py` - Graph Model
-
-**`VisibilityOracle`**:
-*   Implements the **2-hop visibility** policy.
-*   Given a user $u$, returns the induced subgraph on nodes within distance 2.
-*   This is the "view" that user $u$ sees before privatization.
-
-**`SocialGraph`**:
-*   Wraps a NetworkX graph.
-*   Manages the **Public/Private** node designation.
-*   Implements `_select_public_nodes()` using the `degree_top_k` strategy (select top 20% by degree).
-
-#### 3.2.2 `algorithms.py` - DP Algorithms
-
-**`GraphDPAlgorithms`**:
-*   Implements all 6 algorithms (edge count, max degree, triangles, k-stars, each with clipped/smooth variants).
-*   Uses a generic `_aggregate_local_queries()` helper for the LDP aggregation pattern.
-*   Automatically checks if a node is Public and skips noise addition.
-
-#### 3.2.3 `experiment.py` - Evaluation Pipeline
-
-**Workflow**:
-1.  Load Facebook SNAP graph.
-2.  Sample a power-law subgraph (1000 nodes) to ensure tractable runtime.
-3.  Designate top 20% nodes as Public.
-4.  For each $\epsilon \in [0.1, 0.5, 1.0, 2.0, 5.0]$:
-    *   Run all algorithms.
-    *   Compute ground truth and relative error.
-5.  Save results to CSV.
-
-#### 3.2.4 `plot_results.py` - Visualization
-
-*   Reads `results_comprehensive.csv`.
-*   Generates 3 plots (edge, triangle, 2-star errors vs $\epsilon$).
-*   Compares Clipped vs Smooth for triangle and k-star counts.
-
-### 3.3 Key Design Decisions
+graph_dp_project/
+├── src/
+│   ├── model.py           # Graph model & visibility oracle
+│   ├── algorithms.py      # DP algorithms
+│   ├── utils.py           # Helper functions (Laplace, sampling)
+│   ├── experiment.py      # Experiment runner
+│   ├── download_data.py   # Data downloader
+│   └── plot_results.py    # Visualization
 
 1.  **Public Hubs Strategy**: Selecting top-k by degree is simple and effective. It aligns with real-world intuition (celebrities, organizations have public profiles).
 2.  **2-Hop Visibility**: Provides enough local context for triangle counting while remaining realistic (users see friends-of-friends).
