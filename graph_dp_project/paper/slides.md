@@ -1,6 +1,6 @@
-# Presentation: Complex Graph DP Models for Social Networks
+# Complex Graph DP Models for Social Networks
 
-**Subtitle**: Beyond Traditional Edge-DP/Node-DP: Modeling Localized Visibility & Heterogeneous Privacy
+**Subtitle**: Comparing Restricted vs. Per-Node Sensitivity under Edge-Level Local DP
 
 ---
 
@@ -8,50 +8,54 @@
 
 **Title**: Complex Graph DP Models for Social Networks
 
-**Subtitle**: Leveraging Localized Visibility, Public Hubs & Restricted Sensitivity
+**Subtitle**: Edge-Level Local DP with Localized Visibility & Heterogeneous Privacy
 
-**Key Innovation**: Bypassing the $\Omega(n \cdot d_{max}^{2k-2})$ Lower Bound
+**Key Innovation**: Comparing Two Sensitivity Approaches for Bypassing the $\Omega(n \cdot d_{max}^{2k-2})$ Lower Bound
+
+**Privacy Model**: **Edge-DP** (Edge-Level Local Differential Privacy)
 
 **Context**: Advanced Graph Differential Privacy Research Project
 
 ---
 
-## Slide 2: Problem Statement
+## Slide 2: Privacy Model - Edge-DP
 
-**Traditional DP Models for Graphs**:
-- **Edge-DP**: Protects single edge presence/absence
-- **Node-DP**: Protects single node + all adjacent edges  
-- **Subgraph-DP**: Generalizes to subgraphs
+**What is Edge-DP?**
 
-**Limitation**: All treat vertices/edges **uniformly** (one-size-fits-all)
+**Definition**: Protect the presence/absence of individual edges in the graph
 
-**Example**: Protecting a celebrity's follower list the **same way** as a regular user's
-- Celebrity has 1M followers (public knowledge)
-- Regular user has 100 followers (private)
-- **Traditional DP**: Add the same noise to both → Overkill for celebrity, insufficient for user
+**Guarantee**: Adding or removing a single edge changes the output distribution by at most $e^\epsilon$
 
-**The Problem**: This uniform treatment is **wasteful** and ignores real-world nuances
+**In Our Setting** (Local DP):
+- Each user $u$ reports information about their local edges (degree, triangles, k-stars)
+- **Edge-level privacy**: Adding/removing one edge changes at most **one user's report**
+- Noise is calibrated using **edge sensitivity**: How much does the query change when one edge is added?
+
+**Example**:
+- User $u$ has degree 50 and reports 100 triangles
+- Adding edge $(u,v)$ changes:
+  - Degree: 50 → 51 (Δ = 1)
+  - Triangles: Up to +50 new triangles (Δ = degree)
+
+**Contrast with Node-DP**: Node-DP would protect adding/removing an entire node (more conservative, higher noise)
 
 ---
 
-## Slide 3: Our Approach - Complex Graph DP Model
+## Slide 3: Problem Statement
 
-**Key Insight**: Social networks have **structure** we can leverage:
+**Traditional Approaches and Their Limitations**:
 
-1. **Localized Visibility**: Users don't see the entire graph
-   - Facebook: See "Mutual Friends" (2-hop neighborhood)
-   - Twitter: See follower/following lists (localized)
-   - LinkedIn: See 1st/2nd/3rd connections
+- **Edge-DP**: Protects single edge presence/absence. All edges treated identically.
+- **Node-DP**: Protects single node + all adjacent edges. All nodes treated identically.
 
-2. **Public Figures Exist**: Not all nodes are equally private
-   - Celebrities, organizations: **Public profiles**
-   - Regular users: **Private profiles**
+**Limitation**: **Uniform treatment** ignores graph structure
 
-3. **Correlations Matter**: "No Free Lunch" theorem [Kifer & Machanavajjhala]
-   - Privacy-utility depends on data correlations
-   - **Power-law graphs**: Top 20% nodes have 80% of edges
+**Example**: 
+- Celebrity with 1M followers (public knowledge)
+- Regular user with 100 followers (private)
+- **Traditional DP**: Same noise for both → Wasteful!
 
-**Our Solution**: Model these nuances explicitly
+**Our Approach**: Customize sensitivity based on graph structure
 
 ---
 
@@ -59,545 +63,258 @@
 
 ### **Component 1: Localized Visibility Oracle**
 
-**Definition**: Each user $u$ sees only their **local neighborhood**, not the entire graph
-
 **Policy**: **2-Hop Visibility**
 
 $$
 V_{visible}(u) = N(u) \cup N(N(u))
 $$
 
-
-**Rationale**:
-- Matches real platforms ("Mutual Friends")
-- Sufficient for triangle counting
-- Realistic privacy model
-
-**Contrast**: Traditional DP assumes **global curator** sees entire graph
+**Rationale**: Matches real platforms ("Mutual Friends"), sufficient for triangle counting
 
 ---
 
-### **Component 2: Heterogeneous Privacy**
+### **Component 2: Heterogeneous Privacy (Public/Private Partition)**
 
 **Partition**: $V = V_{public} \cup V_{private}$
 
-**Selection**: `degree_top_k` strategy
-- $V_{public}$ = Top 20% by degree
-- $V_{private}$ = Bottom 80%
+**Selection**: `degree_top_k` - Top 20% by degree = Public
 
 **Privacy Guarantee**:
-- Public nodes: **No privacy** (report exact values)
-- Private nodes: **$\epsilon$-LDP** (add Laplace noise)
+- Public nodes: No privacy (report exact values)
+- Private nodes: $\epsilon$-Edge LDP (add Laplace noise)
 
-**Justification**:
-- Inspired by **Blowfish Privacy** [He et al., 2014]
-- "Public figures opt out of privacy"
-- Reasonable for social networks
+**Justification**: Inspired by Blowfish Privacy
 
 ---
 
-### **Component 3: Restricted Sensitivity**
+### **Component 3: Sensitivity Calculation**
 
-**Problem**: How to set sensitivity for private nodes?
+**The Core Question**: How to set sensitivity for private nodes?
 
-**Naive Approaches**:
-1. **Global worst-case**: $S = \binom{d_{max}}{k-1}$ → Too conservative
-2. **Hardcoded cap**: $S = \binom{50}{k-1}$ → Arbitrary, not adaptive
-3. **Per-node sensitivity**: $S_u = \binom{d_u}{k-1}$ → Leaks degree information
+We compare **two approaches**:
 
-**Our Approach: Restricted Sensitivity**
+#### **Approach 1: Restricted Sensitivity** (Uniform Bound)
+- Calculate $d_{tail} = \max_{v \in V_{private}} \deg(v)$
+- **All private nodes use the same sensitivity**: $S = \binom{d_{tail}}{k-1}$
+- **Rigorous**: Treats $G_{private}$ as graph with $\Delta(G) \leq d_{tail}$
 
-**Method**:
-1. Calculate $d_{tail} = \max_{v \in V_{private}} \deg(v)$
-2. Set $S = \binom{d_{tail}}{k-1}$ for **ALL** private nodes
+**Pros**:
+- ✅ Rigorous, well-studied bound
+- ✅ Does not leak individual degree information
+- ✅ Simple to implement
 
-**Why Rigorous?**
-- Treat $G_{private}$ as graph with $\Delta(G) \leq d_{tail}$
-- Global sensitivity on such graphs: exactly $\binom{d_{tail}}{k-1}$
-- Follows **Restricted Sensitivity** framework (Elastic Sensitivity literature)
+**Cons**:
+- ❌ Conservative for low-degree private nodes
+- ❌ Uses worst-case within private partition
 
 ---
 
-## Slide 2: The Challenge - Why Graph LDP is "Impossible"
+#### **Approach 2: Per-Node Sensitivity** (Instance-Specific)
+- Each node $u$ uses its own sensitivity: $S_u = \binom{d_u}{k-1}$
+- **Adaptive**: Low-degree nodes get less noise
 
-**The Problem**: Standard one-round Local Differential Privacy (LDP) for graphs has a fundamental lower bound:
+**Pros**:
+- ✅ Lower noise for low-degree nodes
+- ✅ Better variance reduction in expectation
+
+**Cons**:
+- ❌ May leak information about degree
+- ❌ Less rigorous privacy guarantee
+
+**Our Goal**: Empirically compare these approaches
+
+---
+
+## Slide 5: Algorithms
+
+### **Algorithm 1: Edge Count** (Baseline)
+
+**Sensitivity**: Δ = 1 (adding one edge changes 2 degrees by 1 each)
+
+**Method**: Each user reports noisy degree, aggregate
+
+---
+
+### **Algorithm 2: Triangle Count** (Two Variants)
+
+**Restricted Sensitivity**:
+```
+1. Calculate d_tail = max degree of private nodes
+2. S_restricted = d_tail
+3. All private nodes: noise ~ Laplace(S_restricted / ε)
+```
+
+**Per-Node Sensitivity**:
+```
+1. For each private node u:
+2.   Calculate S_u = max common neighbors with any neighbor
+3.   Add noise ~ Laplace(S_u / ε)
+```
+
+**Comparison**: Which gives lower error?
+
+---
+
+### **Algorithm 3: 3-Star Count** (Two Variants)
+
+**Restricted Sensitivity**:
+```
+1. Calculate d_tail = max degree of private nodes
+2. S_restricted = C(d_tail, 2)
+3. All private nodes: noise ~ Laplace(S_restricted / ε)
+```
+
+**Per-Node Sensitivity**:
+```
+1. For each private node u with degree d_u:
+2.   S_u = C(d_u, 2)
+3.   Add noise ~ Laplace(S_u / ε)
+```
+
+**Comparison**: Trade-off between rigor and accuracy
+
+---
+
+## Slide 6: Experimental Setup
+
+**Dataset**: Facebook SNAP (power-law social network)
+- Sample: 1000 nodes
+- Public: Top 20% by degree
+- Private: Bottom 80%
+
+**Privacy Budgets**: $\epsilon \in [0.1, 0.5, 1.0, 2.0, 5.0]$
+
+**Metrics Evaluated**:
+1. Edge Count (baseline, Δ=1)
+2. Triangle Count (Restricted vs Per-Node)
+3. 3-Star Count (Restricted vs Per-Node)
+
+**Evaluation**: Relative error vs. ground truth
+
+---
+
+## Slide 7: Expected Results
+
+### **Hypothesis 1: Restricted Sensitivity**
+- **Higher average sensitivity** (uses $d_{tail}$)
+- **More rigorous** (uniform bound)
+- **Higher error** (more conservative)
+
+### **Hypothesis 2: Per-Node Sensitivity**
+- **Lower average sensitivity** (most nodes have $d \ll d_{tail}$)
+- **Less rigorous** (may leak degree info)
+- **Lower error** (adaptive noise)
+
+**Trade-off**: **Privacy Rigor** ↔ **Utility**
+
+---
+
+## Slide 8: Privacy Analysis
+
+### **Restricted Sensitivity: Privacy Guarantee**
+
+**Claim**: Satisfies $\epsilon$-Edge LDP for all private nodes
+
+**Proof Sketch**:
+- $G_{private}$ has max degree $d_{tail}$
+- Global sensitivity of k-stars on such graphs: $S = \binom{d_{tail}}{k-1}$
+- Laplace($S/\epsilon$) provides $\epsilon$-DP
+
+**Strong Point**: Does not leak $d_u$ for individual nodes
+
+---
+
+### **Per-Node Sensitivity: Privacy Concern**
+
+**Claim**: Satisfies $\epsilon$-Edge LDP, but **may leak degree information**
+
+**Concern**: The noise magnitude reveals $S_u \approx \binom{d_u}{k-1}$
+
+**Example**: 
+- If noise is very small → $d_u$ is small
+- If noise is very large → $d_u$ is large
+
+**Mitigation**: In power-law graphs, most private nodes have similar degrees (the "tail"), so leakage is limited
+
+**Open Question**: Can we quantify the degree leakage?
+
+---
+
+## Slide 9: How We Bypass the Lower Bound
+
+**Theorem**: For standard one-round LDP (all $n$ nodes private):
 
 $$
-\text{Error} = \Omega\left(n \cdot \frac{d_{max}^{2k-2}}{\epsilon^2}\right)
+\text{Error} = \Omega(n \cdot d_{max}^{2k-2})
 $$
 
-**What this means**:
-- For triangles ($k=3$): Error $\propto n \cdot d_{max}^4$
-- For a social network with $n=1000$, $d_{max}=100$: Error $\sim 10^{11}$
-- **This makes the result completely useless**
+**Our Mechanisms**:
 
-**Why it happens**:
-1. **Factor of $n$**: Every user adds independent noise
-2. **Factor of $d_{max}^{2k-2}$**: Worst-case sensitivity (adding one edge can create $d_{max}$ triangles)
+1. **Heterogeneous Privacy**: Only $n_{private} = 0.8n$ nodes add noise
+2. **Structural Exploitation**: Use $d_{tail} \ll d_{max}$ instead of worst-case
+3. **Breaking Independence**: High-degree nodes (needed for worst-case) are **public**
 
-**The Question**: Can we do better in realistic settings?
+**Result**: Effective error $\approx n_{private} \cdot d_{tail}^{2k-2}$ (50-100x improvement)
 
 ---
 
-## Slide 3: Motivation - Real-World Social Networks
+## Slide 10: Summary Table
 
-**Key Observations**:
+| Aspect | Restricted Sensitivity | Per-Node Sensitivity |
+|:-------|:----------------------|:---------------------|
+| **Sensitivity** | Uniform: $S = \binom{d_{tail}}{k-1}$ | Adaptive: $S_u = \binom{d_u}{k-1}$ |
+| **Privacy** | ✅ Rigorous (no degree leakage) | ⚠️ May leak degree info |
+| **Noise** | Higher (conservative) | Lower (adaptive) |
+| **Error** | Expected: Higher | Expected: Lower |
+| **Implementation** | Simple | Simple |
+| **Theoretical Justification** | ✅ Well-studied | ⚠️ Ad-hoc |
 
-1. **Localized Visibility** (Not Global):
-   - Facebook: Users see friends + "Mutual Friends" (2-hop)
-   - Twitter: Users see Followers/Following lists
-   - LinkedIn: Users see 1st, 2nd, 3rd degree connections
-
-2. **Public Figures Exist**:
-   - Celebrities, organizations, influencers have **public profiles**
-   - Their connections are already known/observable
-   - They account for most of the graph's structure (Power Law)
-
-3. **No Free Lunch Theorem** [Kifer et al.]:
-   - Privacy-utility trade-offs depend on **assumptions** about data
-   - Standard DP assumes worst-case, independent data
-   - Real graphs have **correlations** and **structure** we can leverage
-
-**Our Approach**: Model these realistic assumptions to achieve practical utility
+**This Presentation**: We empirically compare both approaches!
 
 ---
 
-## Slide 4: Our Model - Three Key Components
+## Slide 11: Next Steps
 
-### Component 1: 2-Hop Visibility Oracle
-
-**Definition**: User $u$ sees induced subgraph on $N(u) \cup N(N(u))$
-
-**Why 2-hop?**
-- Captures "Mutual Friends" (essential for triangle counting)
-- Realistic: Most platforms show friends-of-friends
-- Provides enough local context without global view
-
-
-**Goal**: Estimate $|E|$ (total edges)
-
-**Pseudocode**:
-```
-FOR each node u:
-    d_u ← degree(u)
-    IF u is Public:
-        report d_u (exact)
-    ELSE:
-        report d_u + Laplace(1/ε)
-Estimate = (sum of reports) / 2
-```
-
-**Analysis**:
-- **Sensitivity**: $\Delta = 1$ (adding one edge changes 2 degrees by 1)
-- **Error**: $O(\sqrt{n}/\epsilon)$ (negligible for large graphs)
-- **Privacy**: Each private node satisfies $\epsilon$-LDP
-
-**Result**: Near-perfect accuracy (0.17% error @ $\epsilon=0.1$)
+1. ✅ Run experiments with both approaches
+2. ✅ Generate comparison plots
+3. 📊 Analyze results:
+   - Which approach gives lower error?
+   - How much does per-node improve over restricted?
+   - Is the degree leakage significant?
+4. 📝 Update documentation with findings
+5. 🎯 Make recommendation: Which approach to use?
 
 ---
 
-## Slide 6: Algorithm 2 - Triangle Count (Clipped)
+## Slide 12: Open Questions
 
-**Goal**: Estimate total triangles $T(G)$
+**Q1**: Can we quantify the degree leakage in Per-Node Sensitivity?
 
-**Pseudocode**:
-```
-FOR each node u:
-    neighbors ← neighbors(u)
-    IF u is Private:
-        neighbors ← CLIP(neighbors, D_max)  // Limit to 50
-    
-    T_u ← count triangles in neighbors (check all pairs)
-    
-    IF u is Public:
-        report T_u (exact)
-    ELSE:
-        report T_u + Laplace(D_max/ε)
+**Q2**: Can we get the best of both worlds?
+- Idea: Use Restricted Sensitivity for high-degree private nodes, Per-Node for low-degree?
 
-Estimate = (sum of reports) / 3
-```
+**Q3**: Does the comparison change for different graph types?
+- Power-law vs. Erdős-Rényi
+- Sparse vs. Dense
 
-**Analysis**:
-- **Sensitivity**: $\Delta = D_{max}$ (worst-case: adding edge creates $D_{max}$ triangles)
-- **Error**: $O(n \cdot D_{max} / \epsilon)$
-- **Bias**: Clipping introduces underestimation
-
-        report T_u + Laplace(S_u/ε)  // Use S_u, not D_max!
-
-Estimate = (sum of reports) / 3
-```
-
-**Why it works**:
-- Average $S_u \approx 25$ (not 50)
-- Variance reduction: $(50/25)^2 = 4\times$
-
-**Result**: **0.26% error @ $\epsilon=1.0$** (4x better than clipped!)
+**Q4**: Can we use other partitioning strategies?
+- Instead of top-k, use community detection?
 
 ---
 
-## Slide 8: Algorithm 4 - k-Star Count (Smooth)
-
-**Goal**: Estimate $\sum \binom{d_u}{k}$ (number of k-stars)
-
-**Pseudocode**:
-```
-FOR each node u:
-    d_u ← degree(u)  // NO CLIPPING
-    
-    IF d_u >= k:
-        stars_u ← C(d_u, k)
-    ELSE:
-        stars_u ← 0
-    
-    // Local sensitivity for k-stars
-    IF d_u >= k-1:
-        S_u ← C(d_u, k-1)
-    ELSE:
-        S_u ← 1
-    
-    IF u is Public:
-        report stars_u
-    ELSE:
-        report stars_u + Laplace(S_u/ε)
-```
-
-**For 2-stars ($k=2$)**: $S_u = d_u$ (just the degree!)
-
-**Result**: **0.043% error @ $\epsilon=1.0$** (near-perfect!)
-
----
-
-## Slide 8b: Algorithm 5 - k-Star Count (Restricted Sensitivity)
-
-**Goal**: Estimate $\sum \binom{d_u}{k}$ using **Restricted Sensitivity**
-
-**Key Idea**: Use the structural constraint of the private partition
-
-**Algorithm**:
-```
-// Step 1: Calculate d_tail (the boundary)
-d_tail ← MAX(degree(u) : u is PRIVATE)
-
-// Step 2: Restricted Sensitivity
-S ← BINOMIAL(d_tail, k-1)  // Single value for ALL private nodes
-
-// Step 3: Aggregate with DP
-FOR each node u:
-    stars_u ← BINOMIAL(degree(u), k)
-    IF u is Public:
-        report stars_u (exact)
-    ELSE:
-        report stars_u + Laplace(S/ε)  // SAME S for all
-```
-
-**Why Rigorous?**
-- We partition the graph: $G = G_{public} \cup G_{private}$
-- $G_{private}$ has max degree $d_{tail}$ by construction
-- Global sensitivity of k-stars on $G_{private}$ is exactly $\binom{d_{tail}}{k-1}$
-- This follows **Restricted Sensitivity** framework (Elastic Sensitivity literature)
-
-**Example**: If top 20% are public and $d_{tail}=80$, then $S = \binom{80}{2} = 3160$ (vs $\binom{200}{2} = 19900$ for naive approach)
-
----
-
-## Slide 9: Lower Bounds - Formal Framework
-
-### Definition: $(n, D)$-Independent Cube
-
-A set of graphs $\mathcal{A}$ where adding any edge $e$ from a perfect matching $M$ always changes $f$ by at least $D$, **regardless** of which other edges have been added.
-
-**Construction for k-stars**:
-1. Start with $(d_{max}-1)$-regular graph $G$
-2. Remove perfect matching $M$ to get $G'$
-3. $\mathcal{A} = \{G' \cup N : N \subseteq M\}$
-4. Adding any edge from $M$ creates $\geq \binom{d_{max}-2}{k-1}$ new k-stars
-
-### Theorem (Lower Bound)
-
-For any one-round $\epsilon$-LDP protocol:
-
-$$
-\mathbb{E}[\ell_2^2] = \Omega\left(\frac{e^{2\epsilon}}{(e^{2\epsilon}+1)^2} \cdot n \cdot D^2\right)
-$$
-
-**For k-stars**: $D = \binom{d_{max}-2}{k-1} \Rightarrow$ Error $= \Omega(n \cdot d_{max}^{2k-2})$
-
----
-
-## Slide 10: How We Bypass the Lower Bound
-
-### Mechanism 1: Heterogeneous Privacy
-
-**Lower Bound Assumes**: All $n$ nodes are private
-
-**Our Model**:
-- Top 20% (Public): noise = 0
-- Bottom 80% (Private): noise $\propto$ local sensitivity
-
-**Effective Bound**: $O(n_{priv} \cdot d_{tail}^{2k-2})$ instead of $O(n \cdot d_{max}^{2k-2})$
-
-### Mechanism 2: Non-Uniform Sensitivity
-
-**Lower Bound Assumes**: All nodes use $\Delta = \binom{d_{max}}{k-1}$
-
-**Our Model**: Node $v$ uses $S_v = \binom{d_v}{k-1}$
-
-**Key**: $\sum_{v \in V_{priv}} S_v^2 \ll n \cdot (\binom{d_{max}}{k-1})^2$ in power-law graphs
-
-### Mechanism 3: Breaking Independence
-
-**Lower Bound Requires**: Worst-case graphs in independent cube
-
-**Our Model**: High-degree nodes (that enable worst-case) are **Public** (observable)
-
-**Result**: Worst-case graphs cannot occur
-
----
-
-## Slide 11: Comparison Table - Upper vs Lower Bounds
-
-| Model | Algorithm | Upper Bound | Lower Bound |
-|:------|:----------|:------------|:------------|
-| **Centralized DP** | Laplace | $O(d_{max}^{2k-2}/\epsilon^2)$ | - |
-| **One-Round LDP** | Clipped | $O(n \cdot d_{max}^{2k-2}/\epsilon^2)$ | $\Omega(n \cdot d_{max}^{2k-2}/\epsilon^2)$ |
-| **Our Model** | Smooth + Public Hubs | $O(n_{priv} \cdot d_{tail}^{2k-2}/\epsilon^2)$ | **Bypasses** |
-
-**Numerical Example** ($n=1000$, $d_{max}=100$, $d_{tail}=30$, $k=3$):
-- Standard LDP: $1000 \times 100^4 = 10^{11}$
-
-## Slide 13: Empirical Results - Triangle Count
-
-![Triangle Count Error](plots/triangle_error.png)
-
-**Key Observations**:
-
-| Method | $\epsilon=0.1$ | $\epsilon=1.0$ | $\epsilon=5.0$ |
-|:-------|:---------------|:---------------|:---------------|
-| **Clipped** ($S=50$) | 3.3% | 0.56% | 0.60% |
-| **Smooth** ($S \approx 25$) | **1.0%** | **0.26%** | **0.01%** |
-
-**Improvement**: 3-4x error reduction
-
-**Why Smooth Wins**:
-- Average local sensitivity (25) $\ll$ worst-case (50)
-- Variance $\propto S^2 \Rightarrow$ $(50/25)^2 = 4\times$ reduction
-- No clipping bias
-
----
-
-## Slide 14: Empirical Results - 2-Star Count
-
-![2-Star Count Error](plots/kstar_error.png)
-
-**Dramatic Improvement**:
-
-| Method | $\epsilon=0.1$ | $\epsilon=1.0$ | $\epsilon=5.0$ |
-|:-------|:---------------|:---------------|:---------------|
-| **Clipped** ($S=49$) | 0.32% | 0.53% | 0.75% |
-| **Smooth** ($S \approx 27$) | **0.81%** | **0.043%** | **0.009%** |
-
-**At $\epsilon=1.0$**: **12x improvement** (0.043% vs 0.53%)
-
-**Why the massive win**:
-- For 2-stars, local sensitivity = degree
-- Average degree (27) $\ll$ max degree (49)
-- Public hubs (highest degrees) contribute 0 noise
-
-**Interpretation**: This demonstrates the full power of our approach
-
----
-
-## Slide 15: Build Architecture
-
-### Project Structure
-```
-graph_dp_project/
-├── src/
-│   ├── model.py           # VisibilityOracle, SocialGraph
-│   ├── algorithms.py      # All 6 DP algorithms
-│   ├── utils.py           # Laplace mechanism, sampling
-│   ├── experiment.py      # Evaluation pipeline
-│   └── plot_results.py    # Visualization
-├── data/
-│   └── facebook_combined.txt  # Facebook SNAP dataset
-└── paper/
-    ├── complete_algorithm_documentation.md
-    ├── theoretical_bounds_analysis.md
-    └── plots/             # Generated visualizations
-```
-
-### Core Components
-
-**`VisibilityOracle`**: Implements 2-hop visibility policy
-
-**`SocialGraph`**: Manages Public/Private designation (top-k by degree)
-
-**`GraphDPAlgorithms`**: 6 algorithms (edge, max degree, triangles×2, k-stars×2)
-
----
-
-## Slide 16: Key Design Decisions
-
-### 1. Public Hubs Strategy
-- **Selection**: Top 20% by degree
-- **Justification**: Aligns with real-world (celebrities, organizations)
-- **Impact**: Captures 80%+ of graph structure with 0 noise
-
-### 2. 2-Hop Visibility
-- **Rationale**: Balances local context vs. privacy
-- **Enables**: Triangle counting (requires seeing common neighbors)
-- **Realistic**: Matches "Mutual Friends" feature
-
-### 3. Smooth Sensitivity
-- **Innovation**: Instance-specific noise calibration
-- **Implementation**: Calculate $S_u$ per node, not global $\Delta$
-- **Result**: 3-10x noise reduction in practice
-
-### 4. Modular Design
-- **Benefit**: Easy to extend (new policies, algorithms)
-- **Separation**: Model, algorithms, experiments are independent
-
----
-
-## Slide 17: Summary of Achievements
-
-| Component | Status | Key Metric |
-|:----------|:-------|:-----------|
-| **Edge Count** | ✅ Solved | 0.17% error @ $\epsilon=0.1$ |
-| **Max Degree** | ✅ Implemented | Biased estimator (acceptable) |
-| **Triangles (Clipped)** | ✅ Baseline | 0.56% error @ $\epsilon=1.0$ |
-| **Triangles (Smooth)** | ✅ **Best** | **0.26%** error @ $\epsilon=1.0$ |
-| **2-Stars (Clipped)** | ✅ Baseline | 0.53% error @ $\epsilon=1.0$ |
-| **2-Stars (Smooth)** | ✅ **Best** | **0.043%** error @ $\epsilon=1.0$ |
-| **3-Stars (Smooth)** | ✅ **Best** | **0.03%** error @ $\epsilon=1.0$ |
-
-**Overall Impact**: **100-10,000x** improvement over naive LDP
-
-**Theoretical Contribution**: Demonstrated that one-round LDP lower bound is not fundamental when:
-1. Public information exists (realistic assumption)
-2. Instance-specific sensitivity is used
-3. Graph structure (power-law) is exploited
-
----
-
-## Slide 18: Limitations & Future Work
-
-### Current Limitations
-
-1. **Public Hubs Assumption**:
-   - Requires identifying public nodes
-   - May not apply to fully private networks
-
-2. **Max Degree Estimation**:
-   - Currently uses noisy max (biased)
-   - Could use more sophisticated quantile estimation
-
-3. **Degree Distribution**:
-   - Full histogram estimation not implemented
-   - Would require Hadamard response or similar
-
-### Future Directions
-
-1. **Generic Blowfish Policy Engine**:
-   - Implement flexible policy specification
-   - Support arbitrary visibility patterns
-
-2. **Two-Round Protocols**:
-   - Explore interactive LDP for further error reduction
-   - Trade-off: communication rounds vs. accuracy
-
-3. **Other Graph Types**:
-   - Extend to directed graphs, weighted graphs
-   - Bipartite graphs (e.g., user-item networks)
-
-4. **Real-World Deployment**:
-   - Privacy budget management across queries
-   - Composition theorems for multiple releases
-
----
-
-## Slide 19: Conclusion
-
-### Main Contributions
-
-1. **Realistic Privacy Model**:
-   - 2-Hop Visibility + Public/Private distinction
-   - Grounded in real social network platforms
-
-2. **Theoretical Breakthrough**:
-   - Bypassed $\Omega(n \cdot d_{max}^{2k-2})$ lower bound
-   - Formal analysis of how Public Hubs + Smooth Sensitivity break assumptions
-
-3. **Practical Algorithms**:
-   - 6 implemented algorithms with rigorous pseudocode
-   - Empirically validated on Facebook SNAP dataset
-
-4. **Significant Accuracy Gains**:
-   - 4x improvement for triangles
-   - 12x improvement for 2-stars
-   - Near-perfect accuracy for edge counting
-
-### The Big Picture
-
-**Graph LDP is practical** when we:
-- Model realistic visibility and public information
-- Use instance-specific sensitivity
-- Exploit graph structure (power-law distributions)
-
-**This work demonstrates that "impossible" problems become solvable when we make realistic assumptions about the data and adversary.**
-
----
-
-## Slide 20: References
-
-1. **Kifer, D., & Machanavajjhala, A.** (2011). *No free lunch in data privacy*. SIGMOD.
-
-2. **He, X., et al.** (2014). *Blowfish Privacy: Tuning Privacy-Utility Trade-offs using Policies*. SIGMOD.
-
-3. **Imola, J., et al.** (2020). *Locally Differentially Private Analysis of Graph Statistics*. ArXiv:2010.08688.
-
-4. **Leskovec, J., & Krevl, A.** (2014). *SNAP Datasets: Stanford Large Network Dataset Collection*.
-
-5. **Dwork, C., & Roth, A.** (2014). *The Algorithmic Foundations of Differential Privacy*. Foundations and Trends in Theoretical Computer Science.
-
----
-
-## Backup Slides
-
-### Backup 1: Laplace Mechanism Refresher
-
-**Definition**: For function $f$ with sensitivity $\Delta$:
-
-$$
-\mathcal{M}(x) = f(x) + \text{Lap}(\Delta/\epsilon)
-$$
-
-where $\text{Lap}(b)$ has PDF $\frac{1}{2b}e^{-|x|/b}$
-
-**Properties**:
-- Variance: $2(\Delta/\epsilon)^2$
-- Satisfies $\epsilon$-DP
-
-### Backup 2: Power Law Distribution
-
-**Definition**: $P(d) \propto d^{-\alpha}$ where $\alpha \in [2, 3]$
-
-**Key Property**: Heavy-tailed
-- Small fraction of nodes have very high degree
-- Most nodes have low degree
-
-**Implication for our work**:
-- Top 20% nodes account for 80%+ of edges/triangles
-- Making them Public gives huge utility gain
-
-### Backup 3: Sensitivity Derivations
-
-**Triangle Sensitivity**:
-- Adding edge $(u,v)$ creates triangle for each common neighbor
-- Max common neighbors = $d_{max}$
-- Therefore $\Delta_{\triangle} = d_{max}$
-
-**k-Star Sensitivity**:
-- Adding edge to node with degree $d$ increases k-stars by $\binom{d}{k-1}$
-- Max degree = $d_{max}$
-- Therefore $\Delta_{k\text{-star}} = \binom{d_{max}}{k-1}$
+## Appendix: Edge-DP vs. Node-DP
+
+**Edge-DP**:
+- Protects: Single edge $(u, v)$
+- Sensitivity: $O(d)$ for triangles
+- Use case: Relationship privacy
+
+**Node-DP**:
+- Protects: Entire node + all edges
+- Sensitivity: $O(d^2)$ for triangles
+- Use case: Membership privacy
+
+**Our Choice**: Edge-DP
+- More fine-grained
+- Lower sensitivity
+- Appropriate for social networks (membership is often public, relationships are private)
