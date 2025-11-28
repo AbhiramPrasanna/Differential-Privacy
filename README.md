@@ -11,10 +11,10 @@ This project develops **Edge-Level Local Differential Privacy (Edge-DP)** algori
 1. **Modeling realistic social networks**: Localized 2-hop visibility + Public/Private heterogeneous privacy
 2. **Comparing two sensitivity approaches**: 
    - **Restricted Sensitivity** (uniform bound for all private nodes)
-   - **Adaptive Sensitivity** (instance-specific per-node bounds) ← **Our Recommendation**
+   - **Adaptive Sensitivity** (instance-specific per-node bounds)  **Our Recommendation**
 3. **Achieving dramatic improvements**: **4-120x error reduction** with Adaptive Sensitivity
 
-**Key Result**: Our **Adaptive Sensitivity** approach achieves **0.014% error** for 3-star counting at ε=0.1, compared to 1.74% for Restricted Sensitivity—a **120x improvement**.
+**Key Result**: Our **Adaptive Sensitivity** approach achieves **0.014% error** for 3-star counting at =0.1, compared to 1.74% for Restricted Sensitivitya **120x improvement**.
 
 ---
 
@@ -36,9 +36,9 @@ This project develops **Edge-Level Local Differential Privacy (Edge-DP)** algori
 **Example**:
 - User $u$ has degree 50 and reports 100 local triangles
 - Adding edge $(u,v)$ changes:
-  - Degree: 50 → 51 (sensitivity Δ = 1)
-  - Triangles: Up to +50 new triangles (sensitivity Δ = degree)
-  - 3-Stars: Up to $\binom{50}{2} = 1,225$ new 3-stars (sensitivity Δ = $\binom{degree}{2}$)
+  - Degree: 50  51 (sensitivity  = 1)
+  - Triangles: Up to +50 new triangles (sensitivity  = degree)
+  - 3-Stars: Up to $\binom{50}{2} = 1,225$ new 3-stars (sensitivity  = $\binom{degree}{2}$)
 
 **Contrast with Node-DP**: 
 - **Node-DP** protects adding/removing an entire node + all adjacent edges
@@ -107,21 +107,21 @@ We compare **two approaches**:
 - This is a **well-studied bound** from Restricted Sensitivity literature
 
 **Pros**:
-- ✅ **Rigorous**: Well-established theoretical foundation
-- ✅ **No degree leakage**: Does not reveal individual node degrees
-- ✅ **Simple**: Single sensitivity value for all private nodes
+-  **Rigorous**: Well-established theoretical foundation
+-  **No degree leakage**: Does not reveal individual node degrees
+-  **Simple**: Single sensitivity value for all private nodes
 
 **Cons**:
-- ❌ **Conservative**: Uses worst-case within private partition
-- ❌ **Wasteful for low-degree nodes**: 90% of private nodes have $d \ll d_{tail}$
+-  **Conservative**: Uses worst-case within private partition
+-  **Wasteful for low-degree nodes**: 90% of private nodes have $d \ll d_{tail}$
 
 **Example** (Our Facebook Sample):
-- $d_{tail} = 68$ for triangles → $S = 68$
-- $d_{tail} = 68$ for 3-stars → $S = \binom{68}{2} = 2,278$
+- $d_{tail} = 68$ for triangles  $S = 68$
+- $d_{tail} = 68$ for 3-stars  $S = \binom{68}{2} = 2,278$
 
 ---
 
-### **Approach B: Adaptive Sensitivity** (Instance-Specific) ← **OUR RECOMMENDATION**
+### **Approach B: Adaptive Sensitivity** (Instance-Specific)  **OUR RECOMMENDATION**
 
 **Method**:
 1. For each private node $u$, calculate its **own** sensitivity: $S_u = \binom{d_u}{k-1}$
@@ -132,12 +132,12 @@ We compare **two approaches**:
 - Laplace($S_u/\epsilon$) provides $\epsilon$-Edge DP for node $u$'s report
 
 **Pros**:
-- ✅ **Adaptive**: Low-degree nodes get less noise
-- ✅ **Dramatic error reduction**: 4-120x better in practice
-- ✅ **Exploits heterogeneity**: Leverages power-law degree distribution
+-  **Adaptive**: Low-degree nodes get less noise
+-  **Dramatic error reduction**: 4-120x better in practice
+-  **Exploits heterogeneity**: Leverages power-law degree distribution
 
 **Cons**:
-- ⚠️ **Potential degree leakage**: Noise magnitude may reveal approximate degree
+-  **Potential degree leakage**: Noise magnitude may reveal approximate degree
   - **Mitigation**: In power-law graphs, most private nodes cluster in the "tail" with similar degrees, limiting leakage
 
 **Example** (Our Facebook Sample):
@@ -163,7 +163,7 @@ Most nodes: degree 10-30
 
 **Adaptive Sensitivity**: Uses $S_u \approx 16.3$ on average
 - Variance: $\propto (16.3/\epsilon)^2$
-- **Variance Reduction**: $(68/16.3)^2 \approx 17.4x$ ✨
+- **Variance Reduction**: $(68/16.3)^2 \approx 17.4x$ 
 
 **Result**: By exploiting the heterogeneity in the private partition, Adaptive Sensitivity achieves massive error reductions.
 
@@ -184,21 +184,21 @@ We implement **6 algorithms** under Edge-DP:
 **Pseudocode**:
 ```
 Algorithm: EstimateEdgeCount(G, epsilon, public_nodes)
-1. total_noisy_degree ← 0
+1. total_noisy_degree  0
 2. FOR each node u in V:
-3.     d_u ← degree(u)
+3.     d_u  degree(u)
 4.     IF u in public_nodes:
-5.         noisy_degree ← d_u  // No noise for public nodes
+5.         noisy_degree  d_u  // No noise for public nodes
 6.     ELSE:
-7.         noise ← Sample from Laplace(scale = 1/epsilon)
-8.         noisy_degree ← d_u + noise
+7.         noise  Sample from Laplace(scale = 1/epsilon)
+8.         noisy_degree  d_u + noise
 9.     END IF
-10.    total_noisy_degree ← total_noisy_degree + noisy_degree
+10.    total_noisy_degree  total_noisy_degree + noisy_degree
 11. END FOR
 12. RETURN total_noisy_degree / 2
 ```
 
-**Result**: Near-perfect accuracy (0.7% error at ε=0.1) due to low sensitivity
+**Result**: Near-perfect accuracy (0.7% error at =0.1) due to low sensitivity
 
 ---
 
@@ -212,38 +212,38 @@ Algorithm: EstimateEdgeCount(G, epsilon, public_nodes)
 ```
 Algorithm: EstimateTriangles_Restricted(G, epsilon, public_nodes)
 1. // Step 1: Calculate d_tail
-2. d_tail ← 0
+2. d_tail  0
 3. FOR each node u in V:
 4.     IF u NOT in public_nodes:
 5.         IF degree(u) > d_tail:
-6.             d_tail ← degree(u)
+6.             d_tail  degree(u)
 7.         END IF
 8.     END IF
 9. END FOR
 10.
 11. // Step 2: Set restricted sensitivity
-12. S_restricted ← d_tail
+12. S_restricted  d_tail
 13.
 14. // Step 3: Aggregate with DP
-15. total_noisy_triangles ← 0
+15. total_noisy_triangles  0
 16. FOR each node u in V:
-17.     neighbors_u ← neighbors(u)
+17.     neighbors_u  neighbors(u)
 18.     
 19.     // Count local triangles
-20.     T_u ← 0
+20.     T_u  0
 21.     FOR each pair (v, w) in neighbors_u:
 22.         IF edge(v, w) exists:
-23.             T_u ← T_u + 1
+23.             T_u  T_u + 1
 24.         END IF
 25.     END FOR
 26.     
 27.     IF u in public_nodes:
-28.         noisy_T_u ← T_u  // No noise
+28.         noisy_T_u  T_u  // No noise
 29.     ELSE:
-30.         noise ← Sample from Laplace(scale = S_restricted / epsilon)
-31.         noisy_T_u ← T_u + noise
+30.         noise  Sample from Laplace(scale = S_restricted / epsilon)
+31.         noisy_T_u  T_u + noise
 32.     END IF
-33.     total_noisy_triangles ← total_noisy_triangles + noisy_T_u
+33.     total_noisy_triangles  total_noisy_triangles + noisy_T_u
 34. END FOR
 35.
 36. RETURN total_noisy_triangles / 3
@@ -256,7 +256,7 @@ Algorithm: EstimateTriangles_Restricted(G, epsilon, public_nodes)
 
 ---
 
-### 2.3 Triangle Count (Adaptive Sensitivity) ← **RECOMMENDED**
+### 2.3 Triangle Count (Adaptive Sensitivity)  **RECOMMENDED**
 
 **Query**: Total number of triangles
 
@@ -265,42 +265,42 @@ Algorithm: EstimateTriangles_Restricted(G, epsilon, public_nodes)
 **Pseudocode**:
 ```
 Algorithm: EstimateTriangles_Adaptive(G, epsilon, public_nodes)
-1. total_noisy_triangles ← 0
-2. total_sensitivity ← 0
+1. total_noisy_triangles  0
+2. total_sensitivity  0
 3.
 4. FOR each node u in V:
-5.     neighbors_u ← neighbors(u)
+5.     neighbors_u  neighbors(u)
 6.     
 7.     // Count local triangles
-8.     T_u ← 0
+8.     T_u  0
 9.     FOR each pair (v, w) in neighbors_u:
 10.         IF edge(v, w) exists:
-11.             T_u ← T_u + 1
+11.             T_u  T_u + 1
 12.         END IF
 13.     END FOR
 14.     
 15.     IF u in public_nodes:
-16.         noisy_T_u ← T_u  // No noise
+16.         noisy_T_u  T_u  // No noise
 17.     ELSE:
 18.         // Calculate per-node sensitivity
-19.         S_u ← 0
+19.         S_u  0
 20.         FOR each neighbor v in neighbors_u:
-21.             common ← |neighbors(u) ∩ neighbors(v)|
+21.             common  |neighbors(u)  neighbors(v)|
 22.             IF common > S_u:
-23.                 S_u ← common
+23.                 S_u  common
 24.             END IF
 25.         END FOR
-26.         S_u ← MAX(1, S_u)
-27.         total_sensitivity ← total_sensitivity + S_u
+26.         S_u  MAX(1, S_u)
+27.         total_sensitivity  total_sensitivity + S_u
 28.         
 29.         // Use instance-specific sensitivity
-30.         noise ← Sample from Laplace(scale = S_u / epsilon)
-31.         noisy_T_u ← T_u + noise
+30.         noise  Sample from Laplace(scale = S_u / epsilon)
+31.         noisy_T_u  T_u + noise
 32.     END IF
-33.     total_noisy_triangles ← total_noisy_triangles + noisy_T_u
+33.     total_noisy_triangles  total_noisy_triangles + noisy_T_u
 34. END FOR
 35.
-36. avg_sensitivity ← total_sensitivity / |V_private|
+36. avg_sensitivity  total_sensitivity / |V_private|
 37. RETURN total_noisy_triangles / 3, avg_sensitivity
 ```
 
@@ -321,40 +321,40 @@ Algorithm: EstimateTriangles_Adaptive(G, epsilon, public_nodes)
 ```
 Algorithm: EstimateKStars_Restricted(G, k, epsilon, public_nodes)
 1. // Step 1: Calculate d_tail
-2. d_tail ← 0
+2. d_tail  0
 3. FOR each node u in V:
 4.     IF u NOT in public_nodes:
 5.         IF degree(u) > d_tail:
-6.             d_tail ← degree(u)
+6.             d_tail  degree(u)
 7.         END IF
 8.     END IF
 9. END FOR
 10.
 11. // Step 2: Set restricted sensitivity
 12. IF d_tail < k - 1:
-13.     S_restricted ← 1
+13.     S_restricted  1
 14. ELSE:
-15.     S_restricted ← BINOMIAL(d_tail, k - 1)
+15.     S_restricted  BINOMIAL(d_tail, k - 1)
 16. END IF
 17.
 18. // Step 3: Aggregate with DP
-19. total_noisy_kstars ← 0
+19. total_noisy_kstars  0
 20. FOR each node u in V:
-21.     d_u ← degree(u)
+21.     d_u  degree(u)
 22.     
 23.     IF d_u >= k:
-24.         local_kstars ← BINOMIAL(d_u, k)
+24.         local_kstars  BINOMIAL(d_u, k)
 25.     ELSE:
-26.         local_kstars ← 0
+26.         local_kstars  0
 27.     END IF
 28.     
 29.     IF u in public_nodes:
-30.         noisy_kstars ← local_kstars  // No noise
+30.         noisy_kstars  local_kstars  // No noise
 31.     ELSE:
-32.         noise ← Sample from Laplace(scale = S_restricted / epsilon)
-33.         noisy_kstars ← local_kstars + noise
+32.         noise  Sample from Laplace(scale = S_restricted / epsilon)
+33.         noisy_kstars  local_kstars + noise
 34.     END IF
-35.     total_noisy_kstars ← total_noisy_kstars + noisy_kstars
+35.     total_noisy_kstars  total_noisy_kstars + noisy_kstars
 36. END FOR
 37.
 38. RETURN total_noisy_kstars, S_restricted
@@ -365,7 +365,7 @@ Algorithm: EstimateKStars_Restricted(G, k, epsilon, public_nodes)
 
 ---
 
-### 2.5 k-Star Count (Adaptive Sensitivity) ← **RECOMMENDED**
+### 2.5 k-Star Count (Adaptive Sensitivity)  **RECOMMENDED**
 
 **Query**: Number of k-stars (k=3)
 
@@ -374,38 +374,38 @@ Algorithm: EstimateKStars_Restricted(G, k, epsilon, public_nodes)
 **Pseudocode**:
 ```
 Algorithm: EstimateKStars_Adaptive(G, k, epsilon, public_nodes)
-1. total_noisy_kstars ← 0
-2. total_sensitivity ← 0
+1. total_noisy_kstars  0
+2. total_sensitivity  0
 3.
 4. FOR each node u in V:
-5.     d_u ← degree(u)
+5.     d_u  degree(u)
 6.     
 7.     IF d_u >= k:
-8.         local_kstars ← BINOMIAL(d_u, k)
+8.         local_kstars  BINOMIAL(d_u, k)
 9.     ELSE:
-10.         local_kstars ← 0
+10.         local_kstars  0
 11.     END IF
 12.     
 13.     IF u in public_nodes:
-14.         noisy_kstars ← local_kstars  // No noise
+14.         noisy_kstars  local_kstars  // No noise
 15.     ELSE:
 16.         // Calculate per-node sensitivity
 17.         IF d_u >= k - 1:
-18.             S_u ← BINOMIAL(d_u, k - 1)
+18.             S_u  BINOMIAL(d_u, k - 1)
 19.         ELSE:
-20.             S_u ← 1
+20.             S_u  1
 21.         END IF
-22.         S_u ← MAX(1, S_u)
-23.         total_sensitivity ← total_sensitivity + S_u
+22.         S_u  MAX(1, S_u)
+23.         total_sensitivity  total_sensitivity + S_u
 24.         
 25.         // Use instance-specific sensitivity
-26.         noise ← Sample from Laplace(scale = S_u / epsilon)
-27.         noisy_kstars ← local_kstars + noise
+26.         noise  Sample from Laplace(scale = S_u / epsilon)
+27.         noisy_kstars  local_kstars + noise
 28.     END IF
-29.     total_noisy_kstars ← total_noisy_kstars + noisy_kstars
+29.     total_noisy_kstars  total_noisy_kstars + noisy_kstars
 30. END FOR
 31.
-32. avg_sensitivity ← total_sensitivity / |V_private|
+32. avg_sensitivity  total_sensitivity / |V_private|
 33. RETURN total_noisy_kstars, avg_sensitivity
 ```
 
@@ -452,7 +452,7 @@ Algorithm: EstimateKStars_Adaptive(G, k, epsilon, public_nodes)
 | 1.0 | 0.27% |
 | 5.0 | 0.004% |
 
-**Observation**: Near-perfect accuracy due to low sensitivity (Δ=1)
+**Observation**: Near-perfect accuracy due to low sensitivity (=1)
 
 ---
 
@@ -465,22 +465,22 @@ Algorithm: EstimateKStars_Adaptive(G, k, epsilon, public_nodes)
 | Approach | Sensitivity | Reduction |
 |:---------|:-----------|:----------|
 | **Restricted** | 68.0 | Baseline |
-| **Adaptive** | 16.3 (avg) | **4.2x lower** ✅ |
+| **Adaptive** | 16.3 (avg) | **4.2x lower**  |
 
 **Error Comparison**:
 
 | $\epsilon$ | Restricted Error | Adaptive Error | Improvement |
 |:-----------|:-----------------|:---------------|:------------|
-| **0.1** | 7.05% | **0.26%** | **27x better** 🌟 |
+| **0.1** | 7.05% | **0.26%** | **27x better**  |
 | **0.5** | 1.89% | **0.07%** | **26x better** |
 | **1.0** | 0.57% | **0.06%** | **9x better** |
 | **2.0** | 0.015% | 0.061% | Restricted wins |
 | **5.0** | 0.19% | **0.04%** | **5x better** |
 
 **Analysis**:
-- **Adaptive dominates** at low ε (tight privacy budgets)
-- **4.2x lower sensitivity** → $(68/16.3)^2 = 17.4x$ variance reduction
-- At ε=2.0, restricted wins due to randomness (both are very accurate)
+- **Adaptive dominates** at low  (tight privacy budgets)
+- **4.2x lower sensitivity**  $(68/16.3)^2 = 17.4x$ variance reduction
+- At =2.0, restricted wins due to randomness (both are very accurate)
 
 ---
 
@@ -493,23 +493,23 @@ Algorithm: EstimateKStars_Adaptive(G, k, epsilon, public_nodes)
 | Approach | Sensitivity | Reduction |
 |:---------|:-----------|:----------|
 | **Restricted** | 2,278 | Baseline |
-| **Adaptive** | 229.4 (avg) | **9.9x lower** ✅ |
+| **Adaptive** | 229.4 (avg) | **9.9x lower**  |
 
 **Error Comparison**:
 
 | $\epsilon$ | Restricted Error | Adaptive Error | Improvement |
 |:-----------|:-----------------|:---------------|:------------|
-| **0.1** | 1.74% | **0.014%** | **120x better** 🚀🌟 |
+| **0.1** | 1.74% | **0.014%** | **120x better**  |
 | **0.5** | 0.23% | **0.11%** | **2x better** |
 | **1.0** | 0.088% | **0.037%** | **2.4x better** |
 | **2.0** | 0.029% | **0.005%** | **5.8x better** |
 | **5.0** | 0.030% | **0.004%** | **6.9x better** |
 
 **Analysis**:
-- **Adaptive achieves 0.014% error** at ε=0.1 (near-perfect!)
+- **Adaptive achieves 0.014% error** at =0.1 (near-perfect!)
 - **9.9x lower sensitivity** drives massive improvement
 - The gap is even larger for k-stars because sensitivity grows combinatorially with degree
-- **120x improvement** at ε=0.1 demonstrates the full power of Adaptive Sensitivity
+- **120x improvement** at =0.1 demonstrates the full power of Adaptive Sensitivity
 
 ---
 
@@ -519,13 +519,13 @@ Algorithm: EstimateKStars_Adaptive(G, k, epsilon, public_nodes)
 
 | Aspect | Restricted Sensitivity | Adaptive Sensitivity |
 |:-------|:----------------------|:---------------------|
-| **Sensitivity (Triangles)** | 68.0 | **16.3 (avg)** - 4.2x lower ✅ |
-| **Sensitivity (3-Stars)** | 2,278 | **229.4 (avg)** - 9.9x lower ✅ |
-| **Error at ε=0.1 (Triangles)** | 7.05% | **0.26%** - 27x better ✅ |
-| **Error at ε=0.1 (3-Stars)** | 1.74% | **0.014%** - 120x better ✅ |
-| **Privacy Guarantee** | Rigorous (no leakage) | Potential degree leakage ⚠️ |
-| **Theoretical Justification** | Well-studied bound ✅ | Instance-specific (standard in DP) |
-| **Practical Performance** | Good | **Excellent** 🌟 |
+| **Sensitivity (Triangles)** | 68.0 | **16.3 (avg)** - 4.2x lower  |
+| **Sensitivity (3-Stars)** | 2,278 | **229.4 (avg)** - 9.9x lower  |
+| **Error at =0.1 (Triangles)** | 7.05% | **0.26%** - 27x better  |
+| **Error at =0.1 (3-Stars)** | 1.74% | **0.014%** - 120x better  |
+| **Privacy Guarantee** | Rigorous (no leakage) | Potential degree leakage  |
+| **Theoretical Justification** | Well-studied bound  | Instance-specific (standard in DP) |
+| **Practical Performance** | Good | **Excellent**  |
 
 ---
 
@@ -633,12 +633,12 @@ Step 1: Create (d_max - 1)-regular graph G
         All nodes have degree (d_max - 1)
 
 Step 2: Remove perfect matching M
-        → G' with degrees in [d_max - 2, d_max - 1]
+         G' with degrees in [d_max - 2, d_max - 1]
 
 Step 3: Cube A = all graphs formed by adding subsets of M to G'
         |A| = 2^(n/2) graphs
         
-Property: Adding any edge from M creates ≥ C(d_max-2, k-1) k-stars
+Property: Adding any edge from M creates  C(d_max-2, k-1) k-stars
 ```
 
 **For our k=3 example**:
@@ -715,10 +715,10 @@ $$
 |:------|:------|:------------|:------------|
 | **Centralized DP** | k-stars | $O(d_{max}^{2k-2}/\epsilon^2)$ | - |
 | **Centralized DP** | Triangles | $O(d_{max}^2/\epsilon^2)$ | - |
-| **One-Round Edge-LDP (All Private)** | k-stars | $O(n \cdot d_{max}^{2k-2}/\epsilon^2)$ | $\Omega(n \cdot d_{max}^{2k-2}/\epsilon^2)$ ✅ |
-| **One-Round Edge-LDP (All Private)** | Triangles | $O(n \cdot d_{max}^2/\epsilon^2)$ | $\Omega(n \cdot d_{max}^2/\epsilon^2)$ ✅ |
-| **Our Model (Public Hubs + Restricted)** | k-stars | $O(n_{private} \cdot d_{tail}^{2k-2}/\epsilon^2)$ | **Bypasses** 🚀 |
-| **Our Model (Public Hubs + Adaptive)** | k-stars | $O(n_{private} \cdot \bar{d}^{2k-2}/\epsilon^2)$ | **Bypasses** 🚀🚀 |
+| **One-Round Edge-LDP (All Private)** | k-stars | $O(n \cdot d_{max}^{2k-2}/\epsilon^2)$ | $\Omega(n \cdot d_{max}^{2k-2}/\epsilon^2)$  |
+| **One-Round Edge-LDP (All Private)** | Triangles | $O(n \cdot d_{max}^2/\epsilon^2)$ | $\Omega(n \cdot d_{max}^2/\epsilon^2)$  |
+| **Our Model (Public Hubs + Restricted)** | k-stars | $O(n_{private} \cdot d_{tail}^{2k-2}/\epsilon^2)$ | **Bypasses**  |
+| **Our Model (Public Hubs + Adaptive)** | k-stars | $O(n_{private} \cdot \bar{d}^{2k-2}/\epsilon^2)$ | **Bypasses**  |
 
 **Key Observation**: The upper and lower bounds **match** for standard one-round Edge-LDP (tight bounds)!
 
@@ -733,7 +733,7 @@ $$
 **Standard One-Round Edge-LDP** (all nodes private):
 - Lower bound: $\Omega(n \cdot d_{max}^4) = \Omega(1000 \cdot 200^4) = \Omega(1.6 \times 10^{12})$
 - True count: ~$10^8$ (typical for real graphs)
-- **Relative error**: $\sqrt{1.6 \times 10^{12}} / 10^8 \approx 12,649$ or **1,264,900%** ❌
+- **Relative error**: $\sqrt{1.6 \times 10^{12}} / 10^8 \approx 12,649$ or **1,264,900%** 
 - **Completely unusable!**
 
 **Centralized DP**:
@@ -746,7 +746,7 @@ $$
 - $\bar{d}_{private} = 16.3$ (average degree of private nodes)
 - Error: $O(800 \cdot 16.3^4) \approx O(5.6 \times 10^6)$
 - **Relative error**: $\sqrt{5.6 \times 10^6} / 10^8 \approx 0.024$ or **2.4%**
-- **Observed**: 0.014% at $\epsilon=0.1$ (even better!) ✅
+- **Observed**: 0.014% at $\epsilon=0.1$ (even better!) 
 
 $$
 \text{Error} \approx n_{private} \cdot \bar{d}^{2k-2} = 800 \cdot 16.3^4 \approx 5.6 \times 10^9
@@ -764,19 +764,19 @@ $$
 
 ```
 graph_dp_project/
-├── src/
-│   ├── model.py              # SocialGraph, VisibilityOracle
-│   ├── algorithms.py         # All DP algorithms (6 total)
-│   ├── utils.py              # Laplace mechanism, sampling
-│   ├── experiment.py         # Evaluation pipeline
-│   └── plot_results.py       # Visualization
-├── data/
-│   └── facebook_combined.txt # Facebook SNAP dataset
-└── paper/
-    ├── results_comprehensive.csv  # Experimental results
-    ├── plots/                     # Generated plots
-    ├── slides.md                  # Presentation
-    └── complete_algorithm_documentation.md  # This file
+ src/
+    model.py              # SocialGraph, VisibilityOracle
+    algorithms.py         # All DP algorithms (6 total)
+    utils.py              # Laplace mechanism, sampling
+    experiment.py         # Evaluation pipeline
+    plot_results.py       # Visualization
+ data/
+    facebook_combined.txt # Facebook SNAP dataset
+ paper/
+     results_comprehensive.csv  # Experimental results
+     plots/                     # Generated plots
+     slides.md                  # Presentation
+     complete_algorithm_documentation.md  # This file
 ```
 
 ### 6.2 Implementation Files
@@ -784,10 +784,10 @@ graph_dp_project/
 **`src/algorithms.py`** - Contains:
 1. `edge_count(epsilon)` - Edge counting
 2. `triangle_count_smooth(epsilon)` - Triangles with Restricted Sensitivity
-3. `triangle_count_pernode(epsilon)` - Triangles with Adaptive Sensitivity ✨
+3. `triangle_count_pernode(epsilon)` - Triangles with Adaptive Sensitivity 
 4. `k_star_count(k, epsilon)` - k-Stars with Restricted Sensitivity
 5. `k_star_count_smooth(k, epsilon)` - k-Stars with Restricted Sensitivity (legacy name)
-6. `k_star_count_pernode(k, epsilon)` - k-Stars with Adaptive Sensitivity ✨
+6. `k_star_count_pernode(k, epsilon)` - k-Stars with Adaptive Sensitivity 
 
 **`src/model.py`** - Graph model:
 - `VisibilityOracle`: Implements 2-hop visibility
@@ -801,10 +801,10 @@ graph_dp_project/
 
 We have developed **Edge-DP algorithms** for social networks that:
 
-✅ **Model realistic settings**: Localized visibility + heterogeneous privacy  
-✅ **Compare two sensitivity approaches**: Restricted (rigorous) vs Adaptive (practical)  
-✅ **Achieve dramatic improvements**: 120x error reduction with Adaptive Sensitivity  
-✅ **Bypass theoretical lower bounds**: Through public hubs + adaptive noise  
+ **Model realistic settings**: Localized visibility + heterogeneous privacy  
+ **Compare two sensitivity approaches**: Restricted (rigorous) vs Adaptive (practical)  
+ **Achieve dramatic improvements**: 120x error reduction with Adaptive Sensitivity  
+ **Bypass theoretical lower bounds**: Through public hubs + adaptive noise  
 
 **Our Recommendation**: **Adaptive Sensitivity** for real-world deployments due to:
 - 4-10x lower sensitivity
@@ -814,4 +814,4 @@ We have developed **Edge-DP algorithms** for social networks that:
 **Future Work**:
 - Quantify degree leakage in Adaptive approach
 - Extend to other graph queries (clustering coefficient, PageRank)
-- Test on different graph types (Erdős-Rényi, community-structured graphs)
+- Test on different graph types (Erds-Rnyi, community-structured graphs)
