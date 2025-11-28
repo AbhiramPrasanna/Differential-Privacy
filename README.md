@@ -748,20 +748,6 @@ $$
 - **Relative error**: $\sqrt{5.6 \times 10^6} / 10^8 \approx 0.024$ or **2.4%**
 - **Observed**: 0.014% at $\epsilon=0.1$ (even better!) ✅
 
-**Improvement**: 
-$$
-\frac{1.6 \times 10^{12}}{5.6 \times 10^6} \approx 286,000x
-$$
-
-**Our Mechanisms to Bypass**:
-
-1. **Heterogeneous Privacy**: Only $n_{private} = 800$ nodes add noise (we make top 20% public)
-2. **Structural Exploitation**: Use $d_{tail} = 68$ instead of $d_{max} = 200$
-3. **Adaptive Noise**: Further reduce to $\bar{d} = 16.3$ on average
-4. **Breaking Independence**: High-degree nodes (needed for worst-case) are **public** (observable)
-
-**Effective Error Bound**:
-
 $$
 \text{Error} \approx n_{private} \cdot \bar{d}^{2k-2} = 800 \cdot 16.3^4 \approx 5.6 \times 10^9
 $$
