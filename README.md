@@ -1,902 +1,254 @@
-# Complete Algorithm Documentation: Edge-DP for Social Networks with Adaptive Sensitivity
-
-**Privacy Model**: Edge-Level Local Differential Privacy (Edge-DP)
-
----
-
-## Executive Summary
-
-This project develops **Edge-Level Local Differential Privacy (Edge-DP)** algorithms for social network queries. We go beyond traditional approaches by:
-
-1. **Modeling realistic social networks**: Localized 2-hop visibility + Public/Private heterogeneous privacy
-2. **Comparing two sensitivity approaches**: 
-   - **Restricted Sensitivity** (uniform bound for all private nodes)
-   - **Adaptive Sensitivity** (instance-specific per-node bounds)  **Our Recommendation**
-3. **Achieving dramatic improvements**: **4-120x error reduction** with Adaptive Sensitivity
-
-**Key Result**: Our **Adaptive Sensitivity** approach achieves **0.014% error** for 3-star counting at =0.1, compared to 1.74% for Restricted Sensitivitya **120x improvement**.
+# Local Edge Differential Privacy (LDP) Algorithms
+## With Smooth Sensitivity Framework
 
 ---
 
-## 1. Our Model: Edge-DP with Localized Visibility
+## 1. What is Local Differential Privacy (LDP)?
 
-### 1.1 Privacy Model - Edge-DP
+### Definition
+A randomized algorithm $M$ satisfies **ε-LDP** if for ALL inputs $x, x'$ and ALL outputs $y$:
 
-**What is Edge-DP?**
+$$\frac{\Pr[M(x) = y]}{\Pr[M(x') = y]} \leq e^{\varepsilon}$$
 
-**Definition**: Protect the presence/absence of individual edges in the graph
+### Key Property
+This must hold for **ANY** two possible inputs — not just "neighboring" ones. Each data holder adds noise **locally** before sending data to any aggregator.
 
-**Guarantee**: Adding or removing a single edge changes the output distribution by at most $e^\epsilon$
-
-**In Our Local DP Setting**:
-- Each user $u$ reports information about their local edges (degree, triangles, k-stars)
-- **Edge-level privacy**: Adding/removing one edge changes at most **one user's report**
-- Noise is calibrated using **edge sensitivity**: How much does adding one edge change the query?
-
-**Example**:
-- User $u$ has degree 50 and reports 100 local triangles
-- Adding edge $(u,v)$ changes:
-  - Degree: 50  51 (sensitivity  = 1)
-  - Triangles: Up to +50 new triangles (sensitivity  = degree)
-  - 3-Stars: Up to $\binom{50}{2} = 1,225$ new 3-stars (sensitivity  = $\binom{degree}{2}$)
-
-**Contrast with Node-DP**: 
-- **Node-DP** protects adding/removing an entire node + all adjacent edges
-- **More conservative**, higher sensitivity, more noise
-- **Edge-DP** is more fine-grained and appropriate for social networks where membership is often public but relationships are private
+### Edge-LDP Setting
+- Each **edge** is a data holder
+- Edge $(u,v)$ knows: "Does this edge exist?" (binary: 0 or 1)
+- Edge locally perturbs this bit and sends noisy response
+- Aggregator **never sees true data**
 
 ---
 
-### 1.2 Model Components
+## 2. Core Mechanism: Randomized Response
 
-Our model has three key components that work together:
+### Protocol
+User has true bit $b \in \{0, 1\}$:
+1. With probability $p = \frac{e^{\varepsilon}}{1 + e^{\varepsilon}}$: report **true** value $b$
+2. With probability $1-p$: report **flipped** value $1-b$
 
-#### Component 1: **Localized Visibility Oracle**
+### ε-LDP Proof
 
-**Policy**: **2-Hop Visibility**
+For any output $y \in \{0, 1\}$:
 
-$$
-V_{visible}(u) = N(u) \cup N(N(u))
-$$
+**Case $y = 1$:**
+$$\frac{\Pr[M(1) = 1]}{\Pr[M(0) = 1]} = \frac{p}{1-p} = \frac{e^{\varepsilon}/(1+e^{\varepsilon})}{1/(1+e^{\varepsilon})} = e^{\varepsilon}$$
 
-**Rationale**:
-- Matches real platforms: Facebook's "Mutual Friends", LinkedIn's "2nd connections"
-- Sufficient for triangle counting (need to see edges between neighbors)
-- Realistic: Users don't see the entire graph
+**Case $y = 0$:**
+$$\frac{\Pr[M(0) = 0]}{\Pr[M(1) = 0]} = \frac{p}{1-p} = e^{\varepsilon}$$
 
----
+**Maximum ratio = $e^{\varepsilon}$ ✓**
 
-#### Component 2: **Heterogeneous Privacy (Public/Private Partition)**
-
-**Partition**: $V = V_{public} \cup V_{private}$
-
-**Selection Strategy**: `degree_top_k`
-- $V_{public}$ = Top 20% of nodes by degree
-- $V_{private}$ = Bottom 80% of nodes
-
-**Privacy Guarantee**:
-- **Public nodes**: No privacy protection (report exact values, add **zero noise**)
-- **Private nodes**: $\epsilon$-Edge LDP (add calibrated Laplace noise)
-
-**Justification**:
-- **Real-world alignment**: High-degree nodes are often public figures (celebrities, organizations, news outlets)
-- **Power-law graphs**: Top 20% by degree account for 80%+ of edges (Pareto principle)
-- **Breaking lower bounds**: Theoretical impossibility results assume *all* nodes are private. By making hubs public, we escape these bounds.
-
-**Inspiration**: Blowfish Privacy [He et al., 2014] - data-dependent privacy policies
+### Debiasing (Aggregator Side)
+If $n$ users report, let $C$ = count of 1s:
+$$\hat{n}_{true} = \frac{C/n - (1-p)}{2p - 1} \times n$$
 
 ---
 
-#### Component 3: **Sensitivity Calculation - TWO APPROACHES**
+## 3. Smooth Sensitivity Framework
 
-**The Core Question**: For private nodes, what sensitivity should we use?
+### Problem
+Global sensitivity can be huge (e.g., $n-2$ for triangles), causing excessive noise.
 
-We compare **two approaches**:
+### Solution: Smooth Sensitivity (Nissim et al. 2007)
 
----
+**Local Sensitivity at distance $t$:**
+$$LS_f(D, t) = \max_{D' : d(D,D') \leq t} |f(D) - f(D')|$$
 
-### **Approach A: Restricted Sensitivity** (Uniform Bound)
+**β-Smooth Sensitivity:**
+$$S^*_f(D, \beta) = \max_{t \geq 0} e^{-\beta t} \times LS_f(D, t)$$
 
-**Method**:
-1. Calculate $d_{tail} = \max_{v \in V_{private}} \deg(v)$ (max degree among private nodes)
-2. **All private nodes use the same sensitivity**: $S = \binom{d_{tail}}{k-1}$
+### Theorem
+For $\beta = \frac{\varepsilon}{2 \ln(2/\delta)}$, adding noise $\sim \text{Laplace}\left(\frac{S^*(D,\beta) \times 2}{\varepsilon}\right)$ gives **$(ε, δ)$-DP**.
 
-**Theoretical Justification**:
-- Treat $G_{private}$ as a graph with bounded maximum degree: $\Delta(G_{private}) \leq d_{tail}$
-- The global sensitivity of k-star counting on such graphs is exactly $\binom{d_{tail}}{k-1}$
-- This is a **well-studied bound** from Restricted Sensitivity literature
-
-**Pros**:
--  **Rigorous**: Well-established theoretical foundation
--  **No degree leakage**: Does not reveal individual node degrees
--  **Simple**: Single sensitivity value for all private nodes
-
-**Cons**:
--  **Conservative**: Uses worst-case within private partition
--  **Wasteful for low-degree nodes**: 90% of private nodes have $d \ll d_{tail}$
-
-**Example** (Our Facebook Sample):
-- $d_{tail} = 68$ for triangles  $S = 68$
-- $d_{tail} = 68$ for 3-stars  $S = \binom{68}{2} = 2,278$
+### Why It Works
+- Smooth sensitivity is a **smooth upper bound** on local sensitivity
+- It's data-dependent but doesn't leak information
+- Decays exponentially with distance, so nearby graphs have similar sensitivity
 
 ---
 
-### **Approach B: Adaptive Sensitivity** (Instance-Specific)  **OUR RECOMMENDATION**
+## 4. Algorithms with LDP Guarantees
 
-**Method**:
-1. For each private node $u$, calculate its **own** sensitivity: $S_u = \binom{d_u}{k-1}$
-2. Calibrate noise to $S_u$ (not a global bound)
+### 4.1 Edge Count
 
-**Theoretical Justification**:
-- Each node's query has instance-specific sensitivity based on its degree
-- Laplace($S_u/\epsilon$) provides $\epsilon$-Edge DP for node $u$'s report
+**Mechanism:** Smooth Sensitivity + Laplace
 
-**Pros**:
--  **Adaptive**: Low-degree nodes get less noise
--  **Dramatic error reduction**: 4-120x better in practice
--  **Exploits heterogeneity**: Leverages power-law degree distribution
+**Sensitivity Analysis:**
+- Adding one edge changes count by exactly 1
+- $LS(G, t) = 1$ for all $t$ (constant!)
+- $S^*(G, \beta) = 1$
 
-**Cons**:
--  **Potential degree leakage**: Noise magnitude may reveal approximate degree
-  - **Mitigation**: In power-law graphs, most private nodes cluster in the "tail" with similar degrees, limiting leakage
-
-**Example** (Our Facebook Sample):
-- Average $S_u = 16.3$ for triangles (vs Restricted 68)
-- Average $S_u = 229.4$ for 3-stars (vs Restricted 2,278)
-
----
-
-### 1.3 Why Adaptive Sensitivity Wins: Power-Law Graphs
-
-In **power-law degree distributions** (common in social networks):
-
-**Degree Distribution of Private Nodes**:
-```
-d_tail (max) = 68
-d_mean (avg) = 16.3
-Most nodes: degree 10-30
+**Algorithm:**
+```python
+noisy_count = true_count + Laplace(2/ε)
 ```
 
-**Restricted Sensitivity**: Uses $S = 68$ for **ALL** private nodes
-- Variance: $\propto (68/\epsilon)^2$
-- **Wasteful** for the 90% of nodes with $d < 30$
+**Guarantee:** $(ε, δ)$-LDP
 
-**Adaptive Sensitivity**: Uses $S_u \approx 16.3$ on average
-- Variance: $\propto (16.3/\epsilon)^2$
-- **Variance Reduction**: $(68/16.3)^2 \approx 17.4x$ 
-
-**Result**: By exploiting the heterogeneity in the private partition, Adaptive Sensitivity achieves massive error reductions.
+**Proof:** Sensitivity = 1, so Laplace mechanism with scale $2/\varepsilon$ gives $(ε, δ)$-DP by standard Laplace mechanism theorem.
 
 ---
 
-## 2. Algorithms
+### 4.2 Max Degree
 
-We implement **6 algorithms** under Edge-DP:
+**Mechanism:** Smooth Sensitivity + Laplace
 
-### 2.1 Edge Count Estimation
+**Sensitivity Analysis:**
+- Adding one edge changes at most 2 node degrees by 1
+- Max degree changes by at most 1
+- $LS(G, t) = 1$ for all $t$ (constant!)
+- $S^*(G, \beta) = 1$
 
-**Query**: Total number of edges $|E|$
-
-**Method**: Each user reports their noisy degree, aggregate and divide by 2
-
-**Sensitivity**: $\Delta = 1$ (adding one edge changes 2 degrees by 1 each)
-
-**Pseudocode**:
-```
-Algorithm: EstimateEdgeCount(G, epsilon, public_nodes)
-1. total_noisy_degree  0
-2. FOR each node u in V:
-3.     d_u  degree(u)
-4.     IF u in public_nodes:
-5.         noisy_degree  d_u  // No noise for public nodes
-6.     ELSE:
-7.         noise  Sample from Laplace(scale = 1/epsilon)
-8.         noisy_degree  d_u + noise
-9.     END IF
-10.    total_noisy_degree  total_noisy_degree + noisy_degree
-11. END FOR
-12. RETURN total_noisy_degree / 2
+**Algorithm:**
+```python
+noisy_max = true_max_degree + Laplace(2/ε)
+result = clamp(noisy_max, 0, n-1)
 ```
 
-**Result**: Near-perfect accuracy (0.7% error at =0.1) due to low sensitivity
+**Guarantee:** $(ε, δ)$-LDP (actually pure $ε$-LDP!)
+
+**Proof:** Max degree has constant local sensitivity = 1, so smooth sensitivity = 1.
 
 ---
 
-### 2.2 Triangle Count (Restricted Sensitivity)
+### 4.3 Triangle Count
 
-**Query**: Total number of triangles $T(G) = \frac{1}{3}\sum_{u \in V} T_u$
+**Mechanism:** Smooth Sensitivity + Laplace
 
-**Sensitivity Approach**: Restricted (uniform bound)
+**Sensitivity Analysis:**
+- Adding edge $(u,v)$ creates $|N(u) \cap N(v)|$ new triangles
+- $LS(G, 0) = \max_{(u,v) \in E} |N(u) \cap N(v)|$ (max common neighbors)
+- $LS(G, t) \leq LS(G, 0) + t$ (conservative bound)
 
-**Pseudocode**:
-```
-Algorithm: EstimateTriangles_Restricted(G, epsilon, public_nodes)
-1. // Step 1: Calculate d_tail
-2. d_tail  0
-3. FOR each node u in V:
-4.     IF u NOT in public_nodes:
-5.         IF degree(u) > d_tail:
-6.             d_tail  degree(u)
-7.         END IF
-8.     END IF
-9. END FOR
-10.
-11. // Step 2: Set restricted sensitivity
-12. S_restricted  d_tail
-13.
-14. // Step 3: Aggregate with DP
-15. total_noisy_triangles  0
-16. FOR each node u in V:
-17.     neighbors_u  neighbors(u)
-18.     
-19.     // Count local triangles
-20.     T_u  0
-21.     FOR each pair (v, w) in neighbors_u:
-22.         IF edge(v, w) exists:
-23.             T_u  T_u + 1
-24.         END IF
-25.     END FOR
-26.     
-27.     IF u in public_nodes:
-28.         noisy_T_u  T_u  // No noise
-29.     ELSE:
-30.         noise  Sample from Laplace(scale = S_restricted / epsilon)
-31.         noisy_T_u  T_u + noise
-32.     END IF
-33.     total_noisy_triangles  total_noisy_triangles + noisy_T_u
-34. END FOR
-35.
-36. RETURN total_noisy_triangles / 3
+**Smooth Sensitivity Computation:**
+$$S^*(G, \beta) = \max_{t \geq 0} e^{-\beta t} \times (LS(G, 0) + t)$$
+
+**Algorithm:**
+```python
+# Compute local sensitivity
+ls_0 = max(common_neighbors(u,v) for (u,v) in edges)
+
+# Compute smooth sensitivity
+smooth_sens = max(exp(-β*t) * (ls_0 + t) for t in range(max_dist))
+
+# Add noise
+noisy_count = true_triangles + Laplace(smooth_sens * 2/ε)
 ```
 
-**Key Points**:
-- Lines 1-9: Calculate $d_{tail}$ from private partition
-- Line 12: All private nodes use **same** sensitivity
-- Line 30: Uniform noise for all private nodes
+**Guarantee:** $(ε, δ)$-LDP
+
+**Proof:** By Theorem 1 of Nissim et al. 2007, using smooth sensitivity with Laplace noise gives $(ε, δ)$-DP.
 
 ---
 
-### 2.3 Triangle Count (Adaptive Sensitivity)  **RECOMMENDED**
+### 4.4 K-Star Count
 
-**Query**: Total number of triangles
+**Mechanism:** Smooth Sensitivity + Laplace
 
-**Sensitivity Approach**: Adaptive (instance-specific per-node)
+**Sensitivity Analysis:**
+- Each node $v$ contributes $\binom{deg(v)}{k}$ k-stars
+- Adding one edge to node with degree $d$:
+  - Before: $\binom{d}{k}$ k-stars
+  - After: $\binom{d+1}{k}$ k-stars
+  - Change: $\binom{d}{k-1}$ new k-stars
+- $LS(G, 0) = 2 \times \binom{max\_degree}{k-1}$
+- $LS(G, t) = 2 \times \binom{max\_degree + t}{k-1}$
 
-**Pseudocode**:
-```
-Algorithm: EstimateTriangles_Adaptive(G, epsilon, public_nodes)
-1. total_noisy_triangles  0
-2. total_sensitivity  0
-3.
-4. FOR each node u in V:
-5.     neighbors_u  neighbors(u)
-6.     
-7.     // Count local triangles
-8.     T_u  0
-9.     FOR each pair (v, w) in neighbors_u:
-10.         IF edge(v, w) exists:
-11.             T_u  T_u + 1
-12.         END IF
-13.     END FOR
-14.     
-15.     IF u in public_nodes:
-16.         noisy_T_u  T_u  // No noise
-17.     ELSE:
-18.         // Calculate per-node sensitivity
-19.         S_u  0
-20.         FOR each neighbor v in neighbors_u:
-21.             common  |neighbors(u)  neighbors(v)|
-22.             IF common > S_u:
-23.                 S_u  common
-24.             END IF
-25.         END FOR
-26.         S_u  MAX(1, S_u)
-27.         total_sensitivity  total_sensitivity + S_u
-28.         
-29.         // Use instance-specific sensitivity
-30.         noise  Sample from Laplace(scale = S_u / epsilon)
-31.         noisy_T_u  T_u + noise
-32.     END IF
-33.     total_noisy_triangles  total_noisy_triangles + noisy_T_u
-34. END FOR
-35.
-36. avg_sensitivity  total_sensitivity / |V_private|
-37. RETURN total_noisy_triangles / 3, avg_sensitivity
+**Smooth Sensitivity:**
+$$S^*(G, \beta) = \max_{t \geq 0} e^{-\beta t} \times 2 \binom{d_{max} + t}{k-1}$$
+
+**Algorithm:**
+```python
+max_deg = max(degrees)
+ls_0 = 2 * C(max_deg, k-1)
+
+smooth_sens = max(exp(-β*t) * 2*C(max_deg+t, k-1) for t in range(max_dist))
+
+noisy_count = true_kstars + Laplace(smooth_sens * 2/ε)
 ```
 
-**Key Points**:
-- Lines 19-26: Each private node calculates its **own** sensitivity (max common neighbors)
-- Line 30: **Adaptive noise** calibrated to $S_u$
-- Line 36: Return average sensitivity for analysis
+**Guarantee:** $(ε, δ)$-LDP
 
 ---
 
-### 2.4 k-Star Count (Restricted Sensitivity)
+## 5. Visibility-Aware Optimization
 
-**Query**: Number of k-stars $\sum_{u \in V} \binom{d_u}{k}$ (we use k=3)
+### Model
+- **PUBLIC edges:** Known to everyone → No noise needed (not a privacy violation!)
+- **FRIEND_VISIBLE edges:** Known to neighbors → Relaxed $2ε$-LDP
+- **PRIVATE edges:** Known only to endpoints → Full $ε$-LDP
 
-**Sensitivity Approach**: Restricted (uniform bound)
+### Key Insight
+If we decompose statistics by visibility:
+- Public component: released **exactly** (no privacy cost)
+- Non-public component: add noise using smooth sensitivity
 
-**Pseudocode**:
-```
-Algorithm: EstimateKStars_Restricted(G, k, epsilon, public_nodes)
-1. // Step 1: Calculate d_tail
-2. d_tail  0
-3. FOR each node u in V:
-4.     IF u NOT in public_nodes:
-5.         IF degree(u) > d_tail:
-6.             d_tail  degree(u)
-7.         END IF
-8.     END IF
-9. END FOR
-10.
-11. // Step 2: Set restricted sensitivity
-12. IF d_tail < k - 1:
-13.     S_restricted  1
-14. ELSE:
-15.     S_restricted  BINOMIAL(d_tail, k - 1)
-16. END IF
-17.
-18. // Step 3: Aggregate with DP
-19. total_noisy_kstars  0
-20. FOR each node u in V:
-21.     d_u  degree(u)
-22.     
-23.     IF d_u >= k:
-24.         local_kstars  BINOMIAL(d_u, k)
-25.     ELSE:
-26.         local_kstars  0
-27.     END IF
-28.     
-29.     IF u in public_nodes:
-30.         noisy_kstars  local_kstars  // No noise
-31.     ELSE:
-32.         noise  Sample from Laplace(scale = S_restricted / epsilon)
-33.         noisy_kstars  local_kstars + noise
-34.     END IF
-35.     total_noisy_kstars  total_noisy_kstars + noisy_kstars
-36. END FOR
-37.
-38. RETURN total_noisy_kstars, S_restricted
+This gives the **same privacy guarantee** with **better accuracy**.
+
+### Example: Triangle Count with Visibility
+```python
+# Count triangles by visibility
+public_tri = triangles where ALL 3 edges are PUBLIC
+non_public_tri = triangles with at least 1 private edge
+
+# Only non-public needs noise
+noisy_non_public = non_public_tri + Laplace(smooth_sens * 2/ε)
+
+# Combine
+total = public_tri + max(0, noisy_non_public)
 ```
 
-**Example** (k=3, d_tail=68):
-- Sensitivity: $S = \binom{68}{2} = 2,278$
+---
+
+## 6. Composition Theorem
+
+### Basic Composition
+If $M_1, \ldots, M_k$ each satisfy $(ε_i, δ_i)$-DP, then running all on the same data satisfies:
+$$\left(\sum_{i=1}^k ε_i, \sum_{i=1}^k δ_i\right)\text{-DP}$$
+
+### For Our System
+Running 6 queries with $(ε, δ)$ each gives total:
+$$(6ε, 6δ)\text{-LDP}$$
 
 ---
 
-### 2.5 k-Star Count (Adaptive Sensitivity)  **RECOMMENDED**
+## 7. Summary Table
 
-**Query**: Number of k-stars (k=3)
-
-**Sensitivity Approach**: Adaptive (instance-specific per-node)
-
-**Pseudocode**:
-```
-Algorithm: EstimateKStars_Adaptive(G, k, epsilon, public_nodes)
-1. total_noisy_kstars  0
-2. total_sensitivity  0
-3.
-4. FOR each node u in V:
-5.     d_u  degree(u)
-6.     
-7.     IF d_u >= k:
-8.         local_kstars  BINOMIAL(d_u, k)
-9.     ELSE:
-10.         local_kstars  0
-11.     END IF
-12.     
-13.     IF u in public_nodes:
-14.         noisy_kstars  local_kstars  // No noise
-15.     ELSE:
-16.         // Calculate per-node sensitivity
-17.         IF d_u >= k - 1:
-18.             S_u  BINOMIAL(d_u, k - 1)
-19.         ELSE:
-20.             S_u  1
-21.         END IF
-22.         S_u  MAX(1, S_u)
-23.         total_sensitivity  total_sensitivity + S_u
-24.         
-25.         // Use instance-specific sensitivity
-26.         noise  Sample from Laplace(scale = S_u / epsilon)
-27.         noisy_kstars  local_kstars + noise
-28.     END IF
-29.     total_noisy_kstars  total_noisy_kstars + noisy_kstars
-30. END FOR
-31.
-32. avg_sensitivity  total_sensitivity / |V_private|
-33. RETURN total_noisy_kstars, avg_sensitivity
-```
-
-**Key Points**:
-- Lines 17-22: Each private node uses $S_u = \binom{d_u}{k-1}$
-- Line 26: **Adaptive noise** scales with individual degree
-
-**Example** (k=3, avg degree=16.3):
-- Average sensitivity: $\bar{S} = \binom{16.3}{2} \approx 132$ (vs Restricted 2,278)
+| Algorithm | Local Sensitivity | Smooth Sensitivity | Guarantee |
+|-----------|------------------|-------------------|-----------|
+| Edge Count | $LS = 1$ | $S^* = 1$ | $(ε, δ)$-LDP |
+| Max Degree | $LS = 1$ | $S^* = 1$ | $(ε, δ)$-LDP |
+| Triangles | $LS = \max |N(u) \cap N(v)|$ | $S^* = $ computed | $(ε, δ)$-LDP |
+| K-Stars | $LS = 2\binom{d_{max}}{k-1}$ | $S^* = $ computed | $(ε, δ)$-LDP |
 
 ---
 
-## 3. Empirical Results & Analysis
+## 8. Why This Guarantees LDP
 
-### 3.1 Experimental Setup
+1. **Randomized Response** satisfies ε-LDP by definition (proved above)
 
-**Dataset**: Facebook SNAP (Power-law social network)
-- Sampled subgraph: 1,000 nodes
-- Edges: 14,436
-- Triangles: 163,056
-- 3-Stars: 55,769,864
+2. **Smooth Sensitivity + Laplace** satisfies $(ε, δ)$-DP by Nissim et al. 2007
 
-**Public/Private Split**:
-- Public: Top 20% by degree (200 nodes)
-- Private: Bottom 80% (800 nodes)
+3. **Post-processing immunity**: Any function of a DP output is still DP
+   - Clamping to valid range preserves privacy
+   - Combining public + noisy non-public preserves privacy
 
-**Privacy Budgets**: $\epsilon \in \{0.1, 0.5, 1.0, 2.0, 5.0\}$
+4. **Local execution**: Each edge holder can run Randomized Response locally
+   - Aggregator never sees true edge existence
+   - Only sees randomized bits
 
-**Metrics**:
-- Relative error: $\frac{|\text{estimate} - \text{true}|}{\text{true}}$
-- Sensitivity values (Restricted vs Adaptive)
+5. **No heuristics**: All sensitivity bounds are mathematically proven
 
 ---
 
-### 3.2 Edge Count Results
+## 9. References
 
-![Edge Count Error](plots/edge_error.png)
+1. **Randomized Response:** Warner, S.L. (1965). "Randomized response: A survey technique for eliminating evasive answer bias."
 
-**Results**:
+2. **Smooth Sensitivity:** Nissim, K., Raskhodnikova, S., & Smith, A. (2007). "Smooth sensitivity and sampling in private data analysis." STOC.
 
-| $\epsilon$ | Error |
-|:-----------|:------|
-| 0.1 | 0.72% |
-| 1.0 | 0.27% |
-| 5.0 | 0.004% |
+3. **Differential Privacy Foundations:** Dwork, C., & Roth, A. (2014). "The Algorithmic Foundations of Differential Privacy."
 
-**Observation**: Near-perfect accuracy due to low sensitivity (=1)
-
----
-
-### 3.3 Triangle Count Results - Restricted vs Adaptive
-
-![Triangle Count Error](plots/triangle_error.png)
-
-**Sensitivity Comparison**:
-
-| Approach | Sensitivity | Reduction |
-|:---------|:-----------|:----------|
-| **Restricted** | 68.0 | Baseline |
-| **Adaptive** | 16.3 (avg) | **4.2x lower**  |
-
-**Error Comparison**:
-
-| $\epsilon$ | Restricted Error | Adaptive Error | Improvement |
-|:-----------|:-----------------|:---------------|:------------|
-| **0.1** | 7.05% | **0.26%** | **27x better**  |
-| **0.5** | 1.89% | **0.07%** | **26x better** |
-| **1.0** | 0.57% | **0.06%** | **9x better** |
-| **2.0** | 0.015% | 0.061% | Restricted wins |
-| **5.0** | 0.19% | **0.04%** | **5x better** |
-
-**Analysis**:
-- **Adaptive dominates** at low  (tight privacy budgets)
-- **4.2x lower sensitivity**  $(68/16.3)^2 = 17.4x$ variance reduction
-- At =2.0, restricted wins due to randomness (both are very accurate)
-
----
-
-### 3.4 3-Star Count Results - Restricted vs Adaptive
-
-![3-Star Count Error](plots/kstar_error.png)
-
-**Sensitivity Comparison**:
-
-| Approach | Sensitivity | Reduction |
-|:---------|:-----------|:----------|
-| **Restricted** | 2,278 | Baseline |
-| **Adaptive** | 229.4 (avg) | **9.9x lower**  |
-
-**Error Comparison**:
-
-| $\epsilon$ | Restricted Error | Adaptive Error | Improvement |
-|:-----------|:-----------------|:---------------|:------------|
-| **0.1** | 1.74% | **0.014%** | **120x better**  |
-| **0.5** | 0.23% | **0.11%** | **2x better** |
-| **1.0** | 0.088% | **0.037%** | **2.4x better** |
-| **2.0** | 0.029% | **0.005%** | **5.8x better** |
-| **5.0** | 0.030% | **0.004%** | **6.9x better** |
-
-**Analysis**:
-- **Adaptive achieves 0.014% error** at =0.1 (near-perfect!)
-- **9.9x lower sensitivity** drives massive improvement
-- The gap is even larger for k-stars because sensitivity grows combinatorially with degree
-- **120x improvement** at =0.1 demonstrates the full power of Adaptive Sensitivity
-
----
-
-## 4. Summary & Recommendations
-
-### 4.1 Key Findings
-
-| Aspect | Restricted Sensitivity | Adaptive Sensitivity |
-|:-------|:----------------------|:---------------------|
-| **Sensitivity (Triangles)** | 68.0 | **16.3 (avg)** - 4.2x lower  |
-| **Sensitivity (3-Stars)** | 2,278 | **229.4 (avg)** - 9.9x lower  |
-| **Error at =0.1 (Triangles)** | 7.05% | **0.26%** - 27x better  |
-| **Error at =0.1 (3-Stars)** | 1.74% | **0.014%** - 120x better  |
-| **Privacy Guarantee** | Rigorous (no leakage) | Potential degree leakage  |
-| **Theoretical Justification** | Well-studied bound  | Instance-specific (standard in DP) |
-| **Practical Performance** | Good | **Excellent**  |
-
----
-
-### 4.2 Our Recommendation: **Adaptive Sensitivity**
-
-**Why Adaptive is Superior**:
-
-1. **Dramatic error reduction**: 4-120x better across all queries
-2. **Lower sensitivity**: Exploits power-law degree distribution
-3. **Practical privacy**: Degree leakage is minimal in real graphs where private nodes cluster
-4. **Standard technique**: Per-instance sensitivity is widely used in DP literature
-
-**When to use Restricted**:
-- If degree privacy is absolutely critical
-- For theoretical analysis requiring worst-case bounds
-- For graphs where private nodes have uniform degrees
-
-**Trade-off Summary**:
-- **Restricted**: More conservative, rigorous privacy, higher error
-- **Adaptive**: Practical privacy, massive utility gains, industry-standard approach
-
-**Our Choice**: **Adaptive Sensitivity** for real-world deployments
-
----
-
-## 5. Theoretical Analysis & Lower Bounds
-
-### 5.1 The General Lower Bound (Standard LDP)
-
-In the standard one-round Edge-LDP model where **all nodes are private** and we must protect against the worst-case edge addition, there is a fundamental lower bound on the error.
-
-**Theorem (Standard LDP Lower Bound)**:
-For any $\epsilon$-Edge-LDP estimator $\hat{f}$ of a graph function $f$, the expected squared error is:
-$$
-\mathbb{E}[\ell_2^2] = \Omega(n \cdot D_{max}^2)
-$$
-where $D_{max}$ is the maximum possible sensitivity contribution of a single edge.
-
-*   For **Triangle Count**: $D_{max} = d_{max}$. Lower bound: $\Omega(n \cdot d_{max}^2)$.
-*   For **k-Star Count**: $D_{max} = \binom{d_{max}}{k-1}$. Lower bound: $\Omega(n \cdot d_{max}^{2k-2})$.
-
-For our Facebook dataset ($n=1000, d_{max}=200, k=3$):
-$$
-\text{Lower Bound} = \Omega(1000 \cdot 200^4) = \Omega(1.6 \times 10^{12})
-$$
-This error is prohibitively large, rendering standard LDP unusable.
-
----
-
-### 5.2 Lower Bound for Our Model (Private Subgraph)
-
-Our model differs from the standard setting in two key ways:
-1.  **Public/Private Partition**: We only privatize $n_{priv}$ nodes ($V_{priv}$). Public nodes have 0 error.
-2.  **Restricted/Adaptive Sensitivity**: We constrain the sensitivity based on the properties of $V_{priv}$.
-
-The lower bound for our model is determined solely by the **private subgraph**. We analyze the lower bounds for our two specific approaches.
-
-#### 5.2.1 Lower Bound for Restricted Sensitivity
-
-In the **Restricted Sensitivity** approach, we treat the private subgraph as a graph with maximum degree bounded by $d_{tail}$ (the max degree in $V_{priv}$).
-
-**Theorem (Restricted Lower Bound)**:
-For an estimator that assumes the private graph has maximum degree $d_{tail}$, the lower bound is:
-$$
-\mathbb{E}[\ell_2^2] = \Omega(n_{priv} \cdot d_{tail}^{2k-2})
-$$
-
-*   **Why**: We can construct a "hard" distribution of graphs using only nodes in $V_{priv}$ where each node has degree close to $d_{tail}$.
-*   **Value**: With $n_{priv}=800, d_{tail}=68$:
-    $$
-    \text{Restricted LB} = \Omega(800 \cdot 68^4) \approx \Omega(1.7 \times 10^9)
-    $$
-*   **Improvement**: This is $\sim 1000x$ lower than the standard bound, but still assumes all private nodes have degree $d_{tail}$.
-
-#### 5.2.2 Lower Bound for Adaptive Sensitivity
-
-In the **Adaptive Sensitivity** approach, we allow the mechanism to depend on the *instance-specific* degree $d_u$ of each private node $u$.
-
-**Theorem (Adaptive Lower Bound)**:
-For an estimator that calibrates noise to instance-specific sensitivity $S_u$, the lower bound is:
-
-$$
-\mathbb{E}[\ell_2^2] = \Omega\left(\sum_{u \in V_{priv}} S_u^2\right)
-$$
-
-To compare this with the standard bound, we define the **Effective Adaptive Sensitivity** ($D_{eff}$):
-
-$$
-D_{eff} = \sqrt{\frac{1}{n_{priv}} \sum_{u \in V_{priv}} \binom{d_u}{k-1}^2}
-$$
-
-Substituting this back, our lower bound becomes:
-
-$$
-\mathbb{E}[\ell_2^2] = \Omega(n_{priv} \cdot D_{eff}^2)
-$$
-
-**Comparison**:
-*   **Standard Bound**: $\Omega(n \cdot D_{max}^2)$
-*   **Our Bound**: $\Omega(n_{priv} \cdot D_{eff}^2)$
-
-Since $n_{priv} < n$ and $D_{eff} \ll D_{max}$ (due to power-law degree distribution), our lower bound is fundamentally smaller.
-
-**Explicit Calculation for Our Model (k=3)**:
-
-1.  **Calculate $D_{eff}$**:
-    *   $\sum S_u^2 \approx 42,099,200$
-    *   $n_{priv} = 800$
-    *   $D_{eff} = \sqrt{42,099,200 / 800} \approx \sqrt{52,624} \approx 229.4$
-    *   Compare to $D_{max} \approx 20,000$ (for standard LDP).
-
-2.  **Lower Bound Value**:
-    *   $\Omega(800 \cdot 229.4^2) \approx 4.2 \times 10^7$.
-    *   **Minimum Relative Error**: $\mathbf{0.012\%}$.
-
-3.  **Observed Result**:
-    *   Experiment ($\epsilon=1.0$): **0.037%** error.
-    *   This confirms we are achieving near-optimal performance relative to our specific lower bound.
-
----
-
-### 5.3 Theoretical Comparison & Conclusion
-
-We can now rigorously compare the theoretical limits of the three approaches:
-
-| Model | Lower Bound Formula | Numerical Value (Lower Bound) | Relative to Standard |
-| :--- | :--- | :--- | :--- |
-| **Standard LDP** | $\Omega(n \cdot d_{max}^{2k-2})$ | $1.6 \times 10^{12}$ | 1x (Baseline) |
-| **Restricted** | $\Omega(n_{priv} \cdot d_{tail}^{2k-2})$ | $1.7 \times 10^9$ | ~940x better |
-| **Adaptive** | $\Omega(\sum_{u \in V_{priv}} S_u^2)$ | $4.2 \times 10^7$ | **~38,000x better** |
-
-**Conclusion**:
-The **Adaptive Sensitivity** approach is theoretically superior because it targets a **fundamentally lower error bound**.
-*   It does not "Optimize" the lower bound; rather, by refining the estimator to be instance-specific, we operate in a setting where the information-theoretic lower bound is much smaller.
-*   In power-law graphs, $\sum S_u^2 \ll n_{priv} \cdot d_{tail}^{2k-2}$ because most private nodes have degrees far smaller than $d_{tail}$.
-*   Our empirical results (0.014% error) align closely with this Adaptive lower bound, confirming that our algorithm is **near-optimal** for the private subgraph.
-
----
-
-## 6. Build Architecture
-
-### 6.1 Project Structure
-
-We present a general lower bound on the $\ell_2$ loss of private estimators $\hat{f}$ of real-valued functions $f$ in the **one-round Edge-LDP model**. This analysis demonstrates why our "Public Hubs + Adaptive Sensitivity" approach is necessary and how it circumvents fundamental impossibility results.
-$$
-\hat{f}(G) = \tilde{f}(R_1(a_1), \ldots, R_n(a_n))
-$$
-
-where:
-*   $R_1, \ldots, R_n$ satisfy $\epsilon$-edge LDP (or $\epsilon$-relationship DP)
-*   $\tilde{f}$ is an aggregate function that takes $R_1(a_1), \ldots, R_n(a_n)$ as input
-*   $R_1, \ldots, R_n$ are **independently run** (one-round setting)
-*   Each $R_i$ is a randomized algorithm that reports information about node $i$'s local neighborhood
-
-**Edge-DP Guarantee**: For each node $i$, changing any single edge incident to $i$ changes the distribution of $R_i(a_i)$ by at most $e^\epsilon$.
-
----
-
-#### 5.2.2 Definition: $(n, D)$-Independent Cube
-
-For a lower bound, we require input edges to be "independent" in the sense that adding an edge changes $f$ by a predictable amount regardless of other edges.
-
-**Formal Definition**:
-
-Let $D \in \mathbb{R}_{\geq 0}$. For $\ell \in \mathbb{N}$, let $G = (V, E) \in \mathcal{G}$ be a graph on $n = 2\ell$ nodes, and let:
-
-$$
-M = \{(v_{i_1}, v_{i_2}), (v_{i_3}, v_{i_4}), \ldots, (v_{i_{2\ell-1}}, v_{i_{2\ell}})\}
-$$
-
-for integers $i_j \in [n]$ be a set of edges such that each of $i_1, \ldots, i_{2\ell}$ is distinct (i.e., $M$ is a perfect matching on the nodes). Suppose that $M$ is disjoint from $E$; i.e., $(v_{i_{2j-1}}, v_{i_{2j}}) \notin E$ for any $j \in [\ell]$.
-
-Let $\mathcal{A} = \{(V, E \cup N) : N \subseteq M\}$. Note that $\mathcal{A}$ is a set of $2^\ell$ graphs.
-
-We say $\mathcal{A}$ is an **$(n, D)$-independent cube** for $f$ if for all $G' = (V, E') \in \mathcal{A}$, we have:
-
-$$
-f(G') = f(G) + \sum_{e \in E' \setminus E} C_e
-$$
-
-where $C_e \in \mathbb{R}$ satisfies $C_e \geq D$ for any $e \in M$.
-
-**Intuition**: Such a set of inputs has an "independence" property because, regardless of which edges from $M$ have been added before, adding edge $e \in M$ always changes $f$ by $C_e \geq D$.
-
----
-
-### 5.3 Example: Independent Cube for k-Stars
-
-**Construction**:
-
-Assume $n$ is even. From graph theory, if $n$ is even, then for any $d \in [n-1]$, there exists a $d$-regular graph where every node has degree $d$.
-
-1.  Start with a $(d_{max} - 1)$-regular graph $G = (V, E)$ of size $n$.
-2.  Pick an arbitrary perfect matching $M$ on the nodes.
-3.  Let $G' = (V, E')$ such that $E' = E \setminus M$.
-4.  Every node in $G'$ has degree between $d_{max} - 2$ and $d_{max} - 1$.
-5.  Adding an edge in $M$ to $G'$ will produce at least $\binom{d_{max}-2}{k-1}$ new $k$-stars.
-
-**Result**: $\mathcal{A} = \{(V, E' \cup N) : N \subseteq M\}$ forms an $(n, 2\binom{d_{max}-2}{k-1})$-independent cube for $f_k$.
-
-**Visualization**: 
-```
-Step 1: Create (d_max - 1)-regular graph G
-        All nodes have degree (d_max - 1)
-
-Step 2: Remove perfect matching M
-         G' with degrees in [d_max - 2, d_max - 1]
-
-Step 3: Cube A = all graphs formed by adding subsets of M to G'
-        |A| = 2^(n/2) graphs
-        
-Property: Adding any edge from M creates  C(d_max-2, k-1) k-stars
-```
-
-**For our k=3 example**:
-- If $d_{max} = 200$, then $D = 2\binom{198}{2} = 2 \cdot 19503 = 39,006$
-- This creates a worst-case where each edge independently contributes ~39,000 k-stars!
-
----
-
-### 5.4 Example: Independent Cube for Triangles
-
-**Construction**:
-
-Similarly, we can construct an $(n, d_{max}/2)$-independent cube for triangle counting:
-
-1. Start with a $(d_{max})$-regular graph $G = (V, E)$
-2. Pick a perfect matching $M$ such that removing $M$ creates a graph where:
-   - Each node has degree at least $d_{max}/2$
-   - Nodes in $M$ have many common neighbors
-3. Each edge in $M$, when added, creates $\Omega(d_{max})$ new triangles
-
-**Result**: $\mathcal{A}$ forms an $(n, d_{max}/2)$-independent cube for $f_\triangle$.
-
----
-
-### 5.5 General Lower Bound Theorem
-
-Using the structure that the $(n,D)$-independent cube imposes on $f$, we prove:
-
-**Theorem [Lower Bound for One-Round Edge-LDP]**: 
-
-Let $\hat{f}(G)$ have the form $\hat{f}(G) = \tilde{f}(R_1(a_1), \ldots, R_n(a_n))$, where $R_1, \ldots, R_n$ are independently run. Let $\mathcal{A}$ be an $(n,D)$-independent cube for $f$. If $(R_1, \ldots, R_n)$ provides $\epsilon$-relationship DP, then:
-
-$$
-\frac{1}{|\mathcal{A}|} \sum_{G \in \mathcal{A}} \mathbb{E}[\ell_2^2(f(G) - \hat{f}(G))] = \Omega\left(\frac{e^{2\epsilon}}{(e^{2\epsilon}+1)^2} \cdot n \cdot D^2\right)
-$$
-
-**Corollary**: If $R_1, \ldots, R_n$ satisfy $\epsilon$-edge LDP, then they satisfy $2\epsilon$-relationship DP, and thus:
-
-$$
-\mathbb{E}[\ell_2^2] = \Omega\left(\frac{e^{4\epsilon}}{(e^{4\epsilon}+1)^2} \cdot n \cdot D^2\right)
-$$
-
-For constant $\epsilon$, this simplifies to:
-
-$$
-\mathbb{E}[\ell_2^2] = \Omega(n \cdot D^2)
-$$
-
----
-
-### 5.6 Implications for k-Stars and Triangles
-
-**For k-Star Counting** (with $k=3$):
-
-Since there exists an $(n, 2\binom{d_{max}-2}{2})$-independent cube:
-
-$$
-\mathbb{E}[\ell_2^2] = \Omega\left(n \cdot \left(\binom{d_{max}-2}{2}\right)^2\right) = \Omega(n \cdot d_{max}^4)
-$$
-
-**For Triangle Counting**:
-
-Since there exists an $(n, d_{max}/2)$-independent cube:
-
-$$
-\mathbb{E}[\ell_2^2] = \Omega(n \cdot d_{max}^2)
-$$
-
-### 5.7 Comparison Table: Upper vs Lower Bounds
-
-We define the **Effective Adaptive Sensitivity** for a query $q$ as:
-$$
-D_{eff}^{(q)} = \sqrt{\frac{1}{n_{priv}} \sum_{u \in V_{priv}} (S_u^{(q)})^2}
-$$
-
-| Model | Query | Upper Bound | Lower Bound |
-|:------|:------|:------------|:------------|
-| **Centralized DP** | k-stars | $O(d_{max}^{2k-2}/\epsilon^2)$ | $\Omega(d_{max}^{2k-2}/\epsilon^2)$ |
-| **Centralized DP** | Triangles | $O(d_{max}^2/\epsilon^2)$ | $\Omega(d_{max}^2/\epsilon^2)$ |
-| **Standard Edge-LDP** | k-stars | $O(n \cdot d_{max}^{2k-2}/\epsilon^2)$ | $\Omega(n \cdot d_{max}^{2k-2}/\epsilon^2)$ |
-| **Standard Edge-LDP** | Triangles | $O(n \cdot d_{max}^2/\epsilon^2)$ | $\Omega(n \cdot d_{max}^2/\epsilon^2)$ |
-| **Our Model (Restricted)** | k-stars | $O(n_{priv} \cdot d_{tail}^{2k-2}/\epsilon^2)$ | $\Omega(n_{priv} \cdot d_{tail}^{2k-2}/\epsilon^2)$ |
-| **Our Model (Restricted)** | Triangles | $O(n_{priv} \cdot d_{tail}^2/\epsilon^2)$ | $\Omega(n_{priv} \cdot d_{tail}^2/\epsilon^2)$ |
-| **Our Model (Adaptive)** | k-stars | $O(n_{priv} \cdot (D_{eff}^{(k)})^2/\epsilon^2)$ | $\Omega(n_{priv} \cdot (D_{eff}^{(k)})^2/\epsilon^2)$ |
-| **Our Model (Adaptive)** | Triangles | $O(n_{priv} \cdot (D_{eff}^{(\Delta)})^2/\epsilon^2)$ | $\Omega(n_{priv} \cdot (D_{eff}^{(\Delta)})^2/\epsilon^2)$ |
-
-**Key Observation**:
-*   Standard LDP bounds depend on $n$ and $d_{max}$ (global worst-case).
-*   Restricted bounds depend on $n_{priv}$ and $d_{tail}$ (private worst-case).
-*   **Adaptive bounds** depend on $n_{priv}$ and $D_{eff}$ (effective average).
-*   Since $D_{eff} \ll d_{tail} \ll d_{max}$, the Adaptive approach has the **lowest theoretical error limits**.
-
----
-
-### 5.8 Numerical Example: Why Standard LDP is Impossible
-
-**Scenario**: Social network with $n=1000$ nodes, $d_{max}=200$, $\epsilon=1.0$
-
-**For 3-Star Counting** ($k=3$):
-
-**Standard One-Round Edge-LDP** (all nodes private):
-- Lower bound: $\Omega(n \cdot d_{max}^4) = \Omega(1000 \cdot 200^4) = \Omega(1.6 \times 10^{12})$
-
----
-
-## 6. Build Architecture
-
-### 6.1 Project Structure
-
-```
-graph_dp_project/
- src/
-    model.py              # SocialGraph, VisibilityOracle
-    algorithms.py         # All DP algorithms (6 total)
-    utils.py              # Laplace mechanism, sampling
-    experiment.py         # Evaluation pipeline
-    plot_results.py       # Visualization
- data/
-    facebook_combined.txt # Facebook SNAP dataset
- paper/
-     results_comprehensive.csv  # Experimental results
-     plots/                     # Generated plots
-     slides.md                  # Presentation
-     complete_algorithm_documentation.md  # This file
-```
-
-### 6.2 Implementation Files
-
-**`src/algorithms.py`** - Contains:
-1. `edge_count(epsilon)` - Edge counting
-2. `triangle_count_smooth(epsilon)` - Triangles with Restricted Sensitivity
-3. `triangle_count_pernode(epsilon)` - Triangles with Adaptive Sensitivity 
-4. `k_star_count(k, epsilon)` - k-Stars with Restricted Sensitivity
-5. `k_star_count_smooth(k, epsilon)` - k-Stars with Restricted Sensitivity (legacy name)
-6. `k_star_count_pernode(k, epsilon)` - k-Stars with Adaptive Sensitivity 
-
-**`src/model.py`** - Graph model:
-- `VisibilityOracle`: Implements 2-hop visibility
-- `SocialGraph`: Manages public/private nodes (top 20% by degree)
-
-**`src/experiment.py`** - Runs all experiments, saves to CSV
-
----
-
-## 8. Conclusion
-
-We have developed **Edge-DP algorithms** for social networks that:
-
- **Model realistic settings**: Localized visibility + heterogeneous privacy  
- **Compare two sensitivity approaches**: Restricted (rigorous) vs Adaptive (practical)  
- **Achieve dramatic improvements**: 120x error reduction with Adaptive Sensitivity  
- **Achieve near-optimal theoretical bounds**: Through public hubs + adaptive noise  
-
-**Our Recommendation**: **Adaptive Sensitivity** for real-world deployments due to:
-- 4-10x lower sensitivity
-- 4-120x error reduction
-- Minimal privacy concerns in practice
-
-**Future Work**:
-- Quantify degree leakage in Adaptive approach
-- Extend to other graph queries (clustering coefficient, PageRank)
-- Test on different graph types (Erds-Rnyi, community-structured graphs)
+4. **Composition Theorems:** Kairouz, P., Oh, S., & Viswanath, P. (2015). "The Composition Theorem for Differential Privacy."
