@@ -320,38 +320,62 @@ If someone reports "1", it could be:
 
 ## Noisy Counts Are Biased
 
-### Example
-- True edges: 100
-- Each reports 1 with prob 0.73
-- Non-edges also report 1 with prob 0.27!
+### Example Setup
+- **Total positions**: n = 1,000 possible edges (PUBLIC)
+- **True edges**: n₁ = 100 (UNKNOWN - this is what we estimate)
+- **Non-edges**: n - n₁ = 900 (UNKNOWN)
+- **RR parameter**: p = 0.73, (1-p) = 0.27 (PUBLIC)
 
-### What Aggregator Sees
+### What Aggregator Receives
 ```
-Expected "1" reports = 100 × 0.73 + 900 × 0.27 = 73 + 243 = 316
+True edges (100):     Each reports 1 with prob 0.73
+                      Expected: 100 × 0.73 = 73 ones
 
-Naive estimate: 316 edges
+Non-edges (900):      Each reports 1 with prob 0.27 (FLIP!)
+                      Expected: 900 × 0.27 = 243 ones
+
+Total "1" reports: 73 + 243 = 316 ← This is what aggregator sees!
+```
+
+### The Problem
+```
+Naive estimate: 316 edges  ← WRONG!
 True value: 100 edges
 ```
 
-We need to **debias**!
+**The noisy count is biased upward by false positives!**
 
 ---
 
 # Slide 18: Debiasing - The Solution
 
-## Unbiased Estimation
+## Unbiased Estimation Formula
 
-### The Math
-Let $n$ = total positions, $n_1$ = true count, $\tilde{n}$ = noisy count
+### What We Know (PUBLIC Information)
+1. **n = 1,000** - Total positions (computed from number of nodes)
+2. **p = 0.73** - RR probability (protocol parameter)
+3. **ñ = 316** - Noisy count (received from users)
 
+### What We DON'T Know (PRIVATE)
+- **n₁** - True count (this is what we're estimating!)
+- **Which positions are true edges** (protected by RR!)
+
+### The Debiasing Math
+Expected noisy count:
 $$E[\tilde{n}] = n_1 \cdot p + (n - n_1) \cdot (1-p)$$
+
+Expanding:
+$$E[\tilde{n}] = n_1 \cdot p + n \cdot (1-p) - n_1 \cdot (1-p)$$
+$$E[\tilde{n}] = n_1 \cdot [p - (1-p)] + n \cdot (1-p)$$
 $$E[\tilde{n}] = n_1 \cdot (2p - 1) + n \cdot (1-p)$$
 
-### Solving for $n_1$:
+### Solving for n₁:
 $$\hat{n}_1 = \frac{\tilde{n} - n \cdot (1-p)}{2p - 1}$$
 
 ### Example (continued)
 $$\hat{n}_1 = \frac{316 - 1000 \times 0.27}{2 \times 0.73 - 1} = \frac{316 - 270}{0.46} = \frac{46}{0.46} = 100 \checkmark$$
+
+**All inputs to this formula are public or received - no leakage!**
 
 ---
 
@@ -359,24 +383,60 @@ $$\hat{n}_1 = \frac{316 - 1000 \times 0.27}{2 \times 0.73 - 1} = \frac{316 - 270
 
 ## Counting Edges with VA-Edge-LDP
 
+### What Information is PUBLIC vs PRIVATE
+
+| Information | Status | Why |
+|------------|--------|-----|
+| Node set {0,1,2,...,n-1} | **PUBLIC** | Participants in protocol |
+| Number of nodes n | **PUBLIC** | Known before protocol |
+| Total positions n(n-1)/2 | **PUBLIC** | Computed from n |
+| RR parameter p | **PUBLIC** | Protocol specification |
+| Which edges exist | **PRIVATE** | ← THIS is protected! |
+
 ### Protocol
 ```
-FOR each possible edge position (u,v):
+INPUT: n nodes (PUBLIC), ε (PUBLIC)
+COMPUTE: n_total = n(n-1)/2 possible edges (PUBLIC)
 
-   IF visibility(u,v) = PUBLIC:
-       report = edge_exists(u,v)     // Exact!
+FOR each possible edge position (u,v) where u < v:
+   ┌─────────────────────────────────────────────────┐
+   │ LOCAL OPERATION (at edge holder)               │
+   ├─────────────────────────────────────────────────┤
+   │ IF visibility(u,v) = PUBLIC:                    │
+   │    report = edge_exists(u,v)    // Exact!       │
+   │                                                 │
+   │ ELSE:  // PRIVATE                               │
+   │    true_bit = edge_exists(u,v)  // PRIVATE!     │
+   │    report = RR_ε(true_bit)      // Noisy        │
+   │                                                 │
+   │ SEND: (report, is_public_flag)                  │
+   └─────────────────────────────────────────────────┘
+
+AGGREGATOR receives: List of (noisy_bit, is_public) tuples
+   - Total count: n_total = n(n-1)/2 (PUBLIC)
+   - Noisy count: ñ = sum of bits received
    
-   ELSE:  // PRIVATE
-       report = RR_ε(edge_exists(u,v))  // Noisy
-
 AGGREGATE:
-   public_count = sum of public reports
-   private_count = debias(sum of private reports)
+   public_count = Σ report where is_public = True (EXACT)
+   private_reports = [report where is_public = False]
+   private_count = debias(private_reports, n_private, p)
+       = (Σ private_reports - n_private × (1-p)) / (2p-1)
    
-RETURN public_count + private_count
+RETURN: public_count + private_count
 ```
 
----
+### What Aggregator Knows vs Doesn't Know
+
+**KNOWS (PUBLIC):**
+- n = number of nodes
+- n_total = all possible edge positions
+- p = RR probability
+- Public edge values (no privacy claim)
+
+**DOESN'T KNOW (PRIVATE):**
+- Which private edge positions are true edges
+- Which "1" reports are truthful vs flipped
+- True count (only has noisy estimate)
 
 # Slide 20: Edge Count - Critical Detail
 
@@ -864,33 +924,253 @@ visibility_aware_edge_ldp/
 
 ---
 
-# Appendix A: Randomized Response Probabilities
+# Appendix A: Parameter Explanation
 
-## Quick Reference
+## What is PUBLIC vs PRIVATE?
 
-| ε | p (truth prob) | q (flip prob) | p² (two-round) |
-|---|----------------|---------------|----------------|
-| 0.5 | 0.62 | 0.38 | 0.38 |
-| 1.0 | 0.73 | 0.27 | 0.53 |
-| 2.0 | 0.88 | 0.12 | 0.77 |
-| 4.0 | 0.98 | 0.02 | 0.96 |
+### PUBLIC Parameters (No Privacy Concern)
+
+| Parameter | Definition | Why PUBLIC | Example |
+|-----------|-----------|-----------|---------|
+| **n** | Number of nodes | Nodes are participants | n = 300 |
+| **n_total** | Possible edges = n(n-1)/2 | Computed from public n | 44,850 |
+| **ε** | Privacy budget | Protocol specification | ε = 1.0 |
+| **p** | RR truth prob = eᵋ/(1+eᵋ) | Derived from public ε | 0.731 |
+| **q** | RR flip prob = 1-p | Derived from public ε | 0.269 |
+
+### PRIVATE Information (Protected by DP)
+
+| Information | Protection |
+|-------------|-----------|
+| **Which edges exist** | ε-LDP via Randomized Response |
+| **True edge count** | Only noisy estimate available |
+| **Which reports are truthful** | Hidden by RR randomness |
+
+---
+
+# Appendix B: Randomized Response Probabilities
+
+## Quick Reference Table
+
+| ε | p (truth prob) | q (flip prob) | p² (two-round) | Privacy | Accuracy |
+|---|----------------|---------------|----------------|---------|----------|
+| 0.5 | 0.622 | 0.378 | 0.387 | Strong | Poor |
+| 1.0 | 0.731 | 0.269 | 0.534 | Medium | Medium |
+| 2.0 | 0.881 | 0.119 | 0.776 | Weak | Good |
+| 4.0 | 0.982 | 0.018 | 0.964 | Very Weak | Excellent |
+
+### How These Are Computed (PUBLIC Formulas)
+
+$$p = \frac{e^\varepsilon}{1 + e^\varepsilon}$$
+
+$$q = 1 - p = \frac{1}{1 + e^\varepsilon}$$
+
+$$p^2 = \text{(for two-round protocol)}$$
 
 Higher ε → More accuracy, less privacy
 
 ---
 
-# Appendix B: IPW Weight Table
+# Appendix B2: Why n_total is Not a Leak
 
-## Triangle IPW Weights by Edge Composition
+## Detailed Explanation
 
-| Public Edges | Private Edges | Detection Prob (ε=1) | IPW Weight |
-|--------------|---------------|---------------------|------------|
-| 3 | 0 | 1.000 | 1.0 |
-| 2 | 1 | 0.533 | 1.9 |
-| 1 | 2 | 0.284 | 3.5 |
-| 0 | 3 | 0.151 | 6.6 |
+### What n_total Represents
+
+```
+n_total = n × (n-1) / 2 = number of POSSIBLE edge positions
+```
+
+### Information Flow
+
+```
+┌─────────────────────────────────────────────────────┐
+│ STEP 1: Protocol Setup (BEFORE any data collection)│
+├─────────────────────────────────────────────────────┤
+│ PUBLIC: n = 300 nodes participate                   │
+│ PUBLIC: Compute n_total = 300×299/2 = 44,850       │
+│         possible edge positions                     │
+├─────────────────────────────────────────────────────┤
+│ STEP 2: Data Collection                            │
+├─────────────────────────────────────────────────────┤
+│ FOR EACH of 44,850 positions:                      │
+│   PRIVATE: Does edge exist? (1 bit)                │
+│   PUBLIC: Apply RR with public parameter p         │
+│   SEND: Noisy bit (0 or 1)                         │
+├─────────────────────────────────────────────────────┤
+│ STEP 3: Aggregation                                │
+├─────────────────────────────────────────────────────┤
+│ INPUT (PUBLIC): n_total = 44,850                   │
+│ INPUT (PUBLIC): p = 0.731                          │
+│ INPUT (RECEIVED): ñ = sum of noisy bits = 15,234   │
+│                                                     │
+│ COMPUTE: n̂₁ = (15,234 - 44,850×0.269) / 0.462     │
+│               = (15,234 - 12,065) / 0.462          │
+│               ≈ 6,862 edges                        │
+│                                                     │
+│ OUTPUT: Estimated edge count (NOISY, UNBIASED)     │
+└─────────────────────────────────────────────────────┘
+```
+
+### Why This Doesn't Leak
+
+1. **n_total** tells us HOW MANY positions exist, not WHICH are true
+2. The PRIVATE information is the existence bit for each position
+3. Each existence bit is protected by ε-LDP
+4. Knowing n_total is like knowing "there are 44,850 lottery tickets" - doesn't tell you which are winners!
+
+### Analogy
+
+```
+Survey: "Do you use illegal drugs?"
+
+PUBLIC:  Number of people surveyed = 1,000
+PUBLIC:  RR protocol (flip coin, etc.)
+PRIVATE: Each person's true answer
+OUTPUT:  Estimated prevalence = 15% ± 3%
+
+Knowing 1,000 people were surveyed doesn't leak any individual's answer!
+```
+
+# Appendix C: IPW Detailed Explanation
+
+## How IPW Weights Are Computed (ε=1.0, Two-Round)
+
+### PUBLIC Parameters
+```
+ε_total = 1.0 (specified by protocol)
+ε_round1 = 0.5, ε_round2 = 0.5 (split budget)
+
+p1 = exp(0.5)/(1 + exp(0.5)) = 1.649/2.649 = 0.622
+q1 = 1 - p1 = 0.378
+
+p2 = 0.622 (same as round 1)
+q2 = 0.378
+```
+
+### Detection Probabilities (Derived from PUBLIC Parameters)
+
+```
+TRUE EDGE (exists = 1):
+  Round 1 reports 1: probability = p1 = 0.622
+  Round 2 confirms 1: probability = p2 = 0.622
+  Both report 1: p1 × p2 = 0.387 (38.7%)
+
+FALSE EDGE (exists = 0):
+  Round 1 reports 1: probability = q1 = 0.378
+  Round 2 confirms 1: probability = q2 = 0.378  
+  Both report 1: q1 × q2 = 0.143 (14.3%)
+```
+
+### Triangle IPW Weights
+
+For a triangle with 3 edges, weight depends on how many are public:
+
+| Public Edges | Private Edges | Detection Probability | IPW Weight = 1/Detection | Calculation |
+|--------------|---------------|----------------------|-------------------------|-------------|
+| 3 | 0 | 1.0³ = 1.000 | 1.0 | No noise, exact count |
+| 2 | 1 | 1.0² × (p₁p₂) = 0.387 | 2.58 | 1/0.387 |
+| 1 | 2 | 1.0 × (p₁p₂)² = 0.150 | 6.67 | 1/0.150 |
+| 0 | 3 | (p₁p₂)³ = 0.058 | 17.2 | 1/0.058 |
+
+### Why These Weights Are Computed (Not Leaked)
+
+```
+IPW weight = 1 / Pr[detection]
+
+Where Pr[detection] is computed from:
+  - PUBLIC parameters (p1, p2, q1, q2)
+  - Edge visibility status (public or private)
+  - Protocol structure (two rounds)
+
+NO PRIVATE INFORMATION needed to compute weights!
+```
+
+### Example Calculation
+
+```
+Triangle (A, B, C) with edges:
+  (A,B): PRIVATE
+  (B,C): PRIVATE  
+  (A,C): PUBLIC
+
+Detection probability:
+  (A,B): p1 × p2 = 0.387
+  (B,C): p1 × p2 = 0.387
+  (A,C): 1.0 (public, exact)
+  
+Combined: 0.387 × 0.387 × 1.0 = 0.150 (15%)
+
+IPW weight: 1/0.150 = 6.67
+
+This triangle, if detected, counts as 6.67 triangles
+to account for similar triangles missed due to noise.
+```
 
 ---
+
+# Appendix D: Privacy Protection Summary
+
+## What Prevents Data Leakage?
+
+### 1. Universal Querying
+```
+✓ Query ALL n(n-1)/2 possible edges
+✗ Never query only existing edges
+→ Edge existence hidden by querying everything
+```
+
+### 2. Randomized Response
+```
+✓ Each edge applies RR locally
+✓ True bit never leaves device
+✓ Aggregator sees only noisy bits
+→ Individual edge existence protected by ε-LDP
+```
+
+### 3. Fresh Randomness Per Round
+```
+✓ Round 1: Independent random coins
+✓ Round 2: Fresh independent random coins
+✗ No correlation between rounds
+→ No correlation attacks possible
+```
+
+### 4. Public Parameters Only
+```
+✓ Debiasing uses only (n_total, p, ñ)
+✓ IPW uses only (p1, p2, visibility status)
+✗ Never uses true edge existence
+→ Post-processing preserves privacy
+```
+
+### 5. Aggregate-Only Outputs
+```
+✓ Output: Estimated counts (triangles, edges, etc.)
+✗ Never output: Which specific edges exist
+→ Individual edges remain private
+```
+
+### What Aggregator Can vs Cannot Learn
+
+| Can Learn | Cannot Learn |
+|-----------|--------------|
+| Noisy aggregate statistics | Which edges exist |
+| Estimated counts (with error) | True count (exactly) |
+| Public edge values (by design) | Private edge values |
+| Protocol parameters (public) | Which reports are truthful |
+
+### The DP Guarantee
+
+For any private edge e and any output O:
+
+$$\frac{\Pr[M(G \cup \{e\}) = O]}{\Pr[M(G \setminus \{e\}) = O]} \leq e^\varepsilon$$
+
+This holds because:
+1. Edge e only affects its own RR response
+2. RR satisfies the above with equality at eᵋ  
+3. All other processing is on noisy data (post-processing)
+4. Public edges have no privacy claim (by definition)
 
 # Appendix C: Complexity Analysis
 
