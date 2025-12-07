@@ -397,34 +397,6 @@ for edge_str, vis_str in vis_data.items():
 va_graph = VisibilityAwareGraph(G, edge_visibility)
 ```
 
-## Troubleshooting
-
-### Issue: Import Error
-```
-ModuleNotFoundError: No module named 'visibility_aware_edge_ldp'
-```
-**Solution**: Ensure you're in the `DP/` directory and virtual environment is activated.
-
-### Issue: Missing Data Files
-```
-FileNotFoundError: facebook_subset.edgelist
-```
-**Solution**: Run `python quick_subset.py` to generate the subset.
-
-### Issue: High Error at Low ε
-Triangle count shows >200% error at ε=0.5.
-
-**Expected**: Low privacy budgets cause high variance. Use ε≥1.0 for practical results.
-
-### Issue: Slow Experiments
-Experiments take >10 minutes.
-
-**Solution**: Reduce trials in `run_fast_experiments.py`: change `N_TRIALS = 5` to `N_TRIALS = 3`.
-
-
-
-
-
 ## License
 
 MIT License. See dataset sources for their respective licenses.
